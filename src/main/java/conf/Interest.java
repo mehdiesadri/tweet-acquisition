@@ -1,0 +1,212 @@
+package conf;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
+import org.mongodb.morphia.annotations.Embedded;
+import org.mongodb.morphia.annotations.Entity;
+import org.mongodb.morphia.annotations.Id;
+import org.mongodb.morphia.annotations.Transient;
+
+import ta.TotalStatistics;
+import ta.UserStatistics;
+
+@Entity("interest")
+public class Interest {
+	@Id
+	private volatile String id;
+	@Embedded
+	private volatile Client client;
+	private volatile String topic;
+
+	@Embedded
+	private volatile Map<String, Phrase> phrases;
+
+	@Embedded
+	private volatile List<Location> locations;
+
+	private volatile boolean active;
+
+	private volatile Long endTime;
+	private volatile long startTime;
+
+	@Transient
+	private volatile Map<String, Double> phraseTermFreq;
+	@Transient
+	private volatile Map<Long, UserStatistics> users;
+	@Transient
+	private volatile double weightSum;
+	@Transient
+	private volatile TotalStatistics statistics;
+	@Transient
+	private volatile double tweetRelevanceThreshold;
+
+	public Interest(String i, String t) {
+		this();
+		id = i;
+		topic = t;
+	}
+
+	public Interest() {
+		tweetRelevanceThreshold = Double
+				.valueOf(ConfigMgr
+						.readConfigurationParameter("AcquisitionTweetRelevanceThreshold"));
+
+		phrases = new ConcurrentHashMap<String, Phrase>();
+		users = new ConcurrentHashMap<Long, UserStatistics>();
+		locations = new ArrayList<Location>();
+		statistics = new TotalStatistics();
+
+		active = true;
+	}
+
+	public void addPhrase(Phrase phrase) {
+		if (!phrases.containsKey(phrase.getText()))
+			phrases.put(phrase.getText(), phrase);
+	}
+
+	public void removePhrase(Phrase phrase) {
+		phrases.remove(phrase.getText());
+	}
+
+	public synchronized void computeFrequencies() {
+		weightSum = 0;
+		for (Phrase phrase : getPhrases())
+			weightSum += phrase.getWeight();
+
+		phraseTermFreq = new HashMap<String, Double>();
+		for (Phrase phrase : getPhrases()) {
+			for (String term : phrase.getTerms()) {
+				double d = phrase.getWeight() / weightSum;
+				if (!phraseTermFreq.containsKey(term))
+					phraseTermFreq.put(term, d);
+				else
+					phraseTermFreq.put(term, phraseTermFreq.get(term) + d);
+			}
+		}
+	}
+
+	public double getPhraseTermFreq(String term) {
+		if (phraseTermFreq == null)
+			computeFrequencies();
+		if (phraseTermFreq.containsKey(term))
+			return phraseTermFreq.get(term);
+		return 0;
+	}
+
+	public boolean hasPhrase(String p) {
+		String phrase = "";
+		String[] pparts = p.split(" ");
+		Arrays.sort(pparts);
+		for (String t : pparts)
+			phrase += t + " ";
+		phrase = phrase.trim();
+		return phrases.containsKey(phrase);
+	}
+
+	public boolean coverPhrase(String phrase) {
+		for (Phrase p : phrases.values()) {
+			if (p.coverPhrase(phrase))
+				return true;
+		}
+
+		return false;
+	}
+
+	public String getId() {
+		return String.valueOf(id);
+	}
+
+	public double getWeightSum() {
+		return weightSum;
+	}
+
+	public Client getClient() {
+		return client;
+	}
+
+	public void setClient(Client client) {
+		this.client = client;
+	}
+
+	public String getTopic() {
+		return topic;
+	}
+
+	public Long getEndTime() {
+		return endTime;
+	}
+
+	public void setEndTime(Long endTime) {
+		this.endTime = endTime;
+	}
+
+	public long getStartTime() {
+		return startTime;
+	}
+
+	public void setStartTime(long startTime) {
+		this.startTime = startTime;
+	}
+
+	public Collection<Phrase> getPhrases() {
+		return phrases.values();
+	}
+
+	public List<Location> getLocations() {
+		return locations;
+	}
+
+	public void setId(String id) {
+		this.id = id;
+	}
+
+	public boolean isActive() {
+		return active;
+	}
+
+	public void setActive(boolean active) {
+		this.active = active;
+	}
+
+	public Map<String, Double> getPhraseTermFreq() {
+		return phraseTermFreq;
+	}
+
+	public TotalStatistics getStatistics() {
+		return statistics;
+	}
+
+	public long getOldestPhraseUpdateTime() {
+		long oldestPhraseUpdateTime = startTime;
+		for (Phrase phrase : getPhrases()) {
+			if (phrase.getLastUpdateTime() < oldestPhraseUpdateTime
+					|| oldestPhraseUpdateTime == startTime)
+				oldestPhraseUpdateTime = phrase.getLastUpdateTime();
+		}
+		return oldestPhraseUpdateTime;
+	}
+
+	public double getTweetRelevanceThreshold() {
+		return tweetRelevanceThreshold;
+	}
+
+	public Map<Long, UserStatistics> getUsers() {
+		return users;
+	}
+
+	public void addUser(long id) {
+		users.put(id, new UserStatistics(id));
+	}
+
+	public UserStatistics getUserStatistics(long userId) {
+		if (users.containsKey(userId))
+			return users.get(userId);
+		return null;
+	}
+}

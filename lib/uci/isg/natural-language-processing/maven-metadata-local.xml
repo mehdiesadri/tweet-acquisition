@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<metadata>
+  <groupId>uci.isg</groupId>
+  <artifactId>natural-language-processing</artifactId>
+  <versioning>
+    <versions>
+      <version>0.0.1-SNAPSHOT</version>
+    </versions>
+    <lastUpdated>20141204060807</lastUpdated>
+  </versioning>
+</metadata>
