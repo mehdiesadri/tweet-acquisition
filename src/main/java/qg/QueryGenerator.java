@@ -59,31 +59,46 @@ public class QueryGenerator {
 
 		logger.info("Total Interest's Phrase Count: " + phrases.size());
 
+		if (interest.getStatistics().getTotalTweetCount() > 0) {
+			Collection<? extends Phrase> phrasesToExploit = selectPhrasesToExploit(
+					phrases, exploitSize);
+			for (Phrase phrase : phrasesToExploit)
+				if (phrase.getStatistics().getStatCount() > 0
+						&& !query.getPhrases().containsKey(phrase.getText())) {
+					phrase.getStatistics().addStat();
+					phrase.setLastUpdateTime(System.currentTimeMillis());
+					addPhraseToQuery(query, phrase);
+					phrases.remove(phrase);
+				}
+			logger.info("Number of phrases to exploit: "
+					+ phrasesToExploit.size());
+		}
+
 		Collection<? extends Phrase> phrasesToExplore = selectPhrasesToExplore(
 				phrases, exploreSize);
 		for (Phrase phrase : phrasesToExplore) {
 			phrase.getStatistics().addStat();
 			phrase.setLastUpdateTime(System.currentTimeMillis());
-			query.addPhrase(phrase);
+			addPhraseToQuery(query, phrase);
 		}
 
 		logger.info("Number of phrases to explore: " + phrasesToExplore.size());
 
-		if (interest.getStatistics().getTotalTweetCount() == 0)
-			return query;
-
-		Collection<? extends Phrase> phrasesToExploit = selectPhrasesToExploit(
-				phrases, exploitSize);
-		for (Phrase phrase : phrasesToExploit)
-			if (!query.getPhrases().containsKey(phrase.getText())) {
-				phrase.getStatistics().addStat();
-				phrase.setLastUpdateTime(System.currentTimeMillis());
-				query.addPhrase(phrase);
-			}
-
-		logger.info("Number of phrases to exploit: " + phrasesToExploit.size());
-
 		return query;
+	}
+
+	private static void addPhraseToQuery(Query query, Phrase phrase) {
+		List<String> toBeRemoved = new ArrayList<String>();
+		for (String pstr : query.getPhrases().keySet()) {
+			Phrase queryPhrase = query.getPhrases().get(pstr);
+			if (queryPhrase.coverPhrase(phrase.getText()))
+				toBeRemoved.add(pstr);
+		}
+
+		for (String pstr : toBeRemoved)
+			query.getPhrases().remove(pstr);
+
+		query.addPhrase(phrase);
 	}
 
 	private static Collection<? extends Phrase> selectPhrasesToExploit(

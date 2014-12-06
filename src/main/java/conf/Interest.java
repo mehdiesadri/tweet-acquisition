@@ -45,6 +45,8 @@ public class Interest {
 	private volatile TotalStatistics statistics;
 	@Transient
 	private volatile double tweetRelevanceThreshold;
+	@Transient
+	private double minPhraseTermFreq = 0;
 
 	public Interest(String i, String t) {
 		this();
@@ -71,7 +73,8 @@ public class Interest {
 	}
 
 	public void removePhrase(Phrase phrase) {
-		phrases.remove(phrase.getText());
+		if (!phrase.isInitial())
+			phrases.remove(phrase.getText());
 	}
 
 	public synchronized void computeFrequencies() {
@@ -83,10 +86,16 @@ public class Interest {
 		for (Phrase phrase : getPhrases()) {
 			for (String term : phrase.getTerms()) {
 				double d = phrase.getWeight() / weightSum;
-				if (!phraseTermFreq.containsKey(term))
+				if (!phraseTermFreq.containsKey(term)) {
 					phraseTermFreq.put(term, d);
-				else
-					phraseTermFreq.put(term, phraseTermFreq.get(term) + d);
+					if (d < minPhraseTermFreq || minPhraseTermFreq == 0)
+						minPhraseTermFreq = d;
+				} else {
+					double freq = phraseTermFreq.get(term) + d;
+					phraseTermFreq.put(term, freq);
+					if (freq < minPhraseTermFreq || minPhraseTermFreq == 0)
+						minPhraseTermFreq = freq;
+				}
 			}
 		}
 	}
@@ -97,6 +106,10 @@ public class Interest {
 		if (phraseTermFreq.containsKey(term))
 			return phraseTermFreq.get(term);
 		return 0;
+	}
+
+	public double getMinPhraseTermFreq() {
+		return minPhraseTermFreq;
 	}
 
 	public boolean hasPhrase(String p) {

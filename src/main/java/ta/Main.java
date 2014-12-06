@@ -7,7 +7,6 @@ import java.io.InputStreamReader;
 import stm.StorageManager;
 
 public class Main {
-
 	public static void main(String[] args) throws Exception {
 		Acquisition.getInstance();
 		Acquisition.start();

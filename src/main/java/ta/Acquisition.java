@@ -1,5 +1,10 @@
 package ta;
 
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.Socket;
 import java.util.List;
 
 import lang.EnglishClassifier;
@@ -197,5 +202,26 @@ public class Acquisition implements Runnable {
 
 	public static void addTweetCount(int c) {
 		tweetCount += c;
+	}
+
+	public static double getTermCommonness(String term) {
+		String serverName = "128.195.53.246";
+		int port = 9090;
+		try {
+			Socket client = new Socket(serverName, port);
+			DataOutputStream out = new DataOutputStream(
+					client.getOutputStream());
+			out.writeUTF(term.trim());
+			InputStream inFromServer = client.getInputStream();
+			DataInputStream in = new DataInputStream(inFromServer);
+			String response = in.readUTF();
+			String[] responseParts = response.split("\t");
+			client.close();
+			return Double.valueOf(responseParts[1]);
+		} catch (IOException e) {
+			System.out.println(e.getMessage());
+		}
+
+		return .5;
 	}
 }

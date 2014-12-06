@@ -1,18 +1,22 @@
 package qg;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.PriorityQueue;
+import java.util.Set;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import ta.Acquisition;
-import conf.ConfigMgr;
 import conf.Interest;
 import conf.Phrase;
-import conf.Report;
 
 public class InterestUpdater {
 	static final Logger logger = LogManager.getLogger(InterestUpdater.class
@@ -20,19 +24,6 @@ public class InterestUpdater {
 
 	private static InterestUpdater instance = null;
 	private static double newPhraseMinSup;
-	private static double phraseRelevanceThreshold;
-	private static int newPhraseMaxLength; // max n-gram to consider
-
-	public InterestUpdater() {
-		phraseRelevanceThreshold = Double
-				.valueOf(ConfigMgr
-						.readConfigurationParameter("AcquisitionPhraseRelevanceThreshold"));
-		newPhraseMinSup = Double.valueOf(ConfigMgr
-				.readConfigurationParameter("AcquisitionNewPhraseMinSup"));
-		newPhraseMaxLength = Integer.valueOf(ConfigMgr
-				.readConfigurationParameter("AcquisitionNewPhraseMaxLength"));
-		getInstance();
-	}
 
 	public static synchronized InterestUpdater getInstance() {
 		if (instance == null)
@@ -56,11 +47,13 @@ public class InterestUpdater {
 						.getTotalRelevantTweetCount();
 
 				if (totalIrrelevantTweetCount == 0
-						&& totalRelevantTweetCount > 0) {
-					String before = phrase.getText();
-					phrase = generalizePhrase(interest, phrase);
-					logger.info("generalized phrase: " + before + " to "
-							+ phrase.getText());
+						&& totalRelevantTweetCount > 0
+						&& phrase.getTerms().length > 1) {
+					Phrase newPhrase = generalizePhrase(interest, phrase);
+					logger.info("generalized phrase: " + phrase.getText()
+							+ " to " + newPhrase.getText());
+					interest.removePhrase(phrase);
+					interest.addPhrase(newPhrase);
 				} else if (totalIrrelevantTweetCount > 0
 						&& totalRelevantTweetCount == 0) {
 					interest.removePhrase(phrase);
@@ -74,10 +67,11 @@ public class InterestUpdater {
 								+ phrase.getText());
 					}
 				} else {
-					String before = phrase.getText();
-					phrase = specializePhrase(interest, phrase);
-					logger.info("specialize phrase: " + before + " to "
-							+ phrase.getText());
+					Phrase newPhrase = specializePhrase(interest, phrase);
+					logger.info("specialize phrase: " + phrase.getText()
+							+ " to " + newPhrase.getText());
+					interest.removePhrase(phrase);
+					interest.addPhrase(newPhrase);
 				}
 			}
 
@@ -90,23 +84,57 @@ public class InterestUpdater {
 	private static void addNewPhrases(Interest interest) {
 		Map<Phrase, Double> newPhrases = new HashMap<Phrase, Double>();
 
-		for (Entry<String, Integer> fpattern : Acquisition.getCurrentWindow()
-				.getStatistics().getFrequentRelevantPatterns().entrySet()) {
-			double freq = (double) fpattern.getValue()
+		Map<String, Integer> frequentRelevantPatterns = Acquisition
+				.getCurrentWindow().getStatistics()
+				.getFrequentRelevantPatterns();
+		for (String fpattern : frequentRelevantPatterns.keySet()) {
+			double freq = (double) frequentRelevantPatterns.get(fpattern)
 					/ (double) Acquisition.getCurrentWindow().getStatistics()
 							.getRelevantTweetCount();
 			if (freq > newPhraseMinSup) {
 				Phrase newPhrase = new Phrase();
-				newPhrase.setText(fpattern.getKey().replace(",", " "));
+				newPhrase.setText(fpattern.replace(",", " "));
 				newPhrase.setWeight(freq);
 				newPhrase.setInitial(false);
-				newPhrases.put(newPhrase, freq);
+				double score = 0;
+				for (String term : newPhrase.getTerms()) {
+					double interestTermFreq = interest.getPhraseTermFreq(term);
+					double termSpecificity = 1 - Acquisition
+							.getTermCommonness(term);
+					double termRelevanceToInterest = interestTermFreq == 0 ? interest
+							.getMinPhraseTermFreq() : interestTermFreq;
+					score += termSpecificity * termRelevanceToInterest;
+					logger.info(term + " " + termSpecificity + " "
+							+ termRelevanceToInterest);
+				}
+
+				score = score / (double) newPhrase.getTerms().length;
+				newPhrases.put(newPhrase, score);
 			}
 		}
 
-		for (Phrase phrase : newPhrases.keySet()) {
-			double freq = newPhrases.get(phrase);
-			logger.info("to be added phrase: " + freq + " " + phrase.getText());
+		List<Entry<Phrase, Double>> newPhrasesEntrySet = new ArrayList<Map.Entry<Phrase, Double>>(
+				newPhrases.entrySet());
+		Collections.sort(newPhrasesEntrySet,
+				new Comparator<Entry<Phrase, Double>>() {
+					public int compare(Entry<Phrase, Double> arg0,
+							Entry<Phrase, Double> arg1) {
+						return arg1.getValue().compareTo(arg0.getValue());
+					}
+				});
+
+		for (int i = 0; i < (newPhrasesEntrySet.size() > 10 ? 10
+				: newPhrasesEntrySet.size()); i++) {
+			logger.info("to be added phrase: "
+					+ newPhrasesEntrySet.get(i).getKey().getText() + " score: "
+					+ newPhrasesEntrySet.get(i).getValue());
+		}
+
+		if (newPhrasesEntrySet.size() > 0) {
+			interest.addPhrase(newPhrasesEntrySet.get(0).getKey());
+			logger.info("added phrase: "
+					+ newPhrasesEntrySet.get(0).getKey().getText() + " score: "
+					+ newPhrasesEntrySet.get(0).getValue());
 		}
 	}
 
@@ -118,22 +146,58 @@ public class InterestUpdater {
 		String[] terms = phrase.getTerms();
 
 		for (int i = 0; i < terms.length; i++) {
-			double tf = interest.getPhraseTermFreq(terms[i]);
+			String term = terms[i];
+			double phraseTermFreq = interest.getPhraseTermFreq(term);
+			double tf = 1 / (phraseTermFreq == 0 ? 1 : (double) phraseTermFreq);
+			tf = tf * Acquisition.getTermCommonness(term);
 			if (tf < mintf || mintf == 0) {
 				mintf = tf;
-				term_mintf = terms[i];
+				term_mintf = term;
 			}
 		}
 
-		for (String term : terms)
+		for (String term : terms) {
 			if (!term.equalsIgnoreCase(term_mintf))
 				npt += term + " ";
+		}
 
-		return phrase;
+		np.setText(npt);
+		return np;
 	}
 
 	private static Phrase specializePhrase(Interest interest, Phrase phrase) {
-		return phrase;
+		Phrase newPhrase = null;
+		Map<String, Integer> frequentRelevantPatterns = Acquisition
+				.getCurrentWindow().getStatistics()
+				.getFrequentRelevantPatterns();
+
+		double maxFreq = 0;
+		for (String fpattern : frequentRelevantPatterns.keySet()) {
+			double freq = (double) frequentRelevantPatterns.get(fpattern)
+					/ (double) Acquisition.getCurrentWindow().getStatistics()
+							.getRelevantTweetCount();
+			if (freq > newPhraseMinSup && (freq > maxFreq || maxFreq == 0)) {
+				newPhrase = new Phrase();
+				newPhrase.setText(fpattern.replace(",", " "));
+				newPhrase.setWeight(freq);
+				newPhrase.setInitial(false);
+				if (newPhrase.coverPhrase(phrase.getText())) {
+					maxFreq = freq;
+				}
+			}
+		}
+
+		if (newPhrase == null) {
+			for (Phrase p : interest.getPhrases()) {
+				if (p.coverPhrase(phrase.getText()))
+					newPhrase = p;
+			}
+
+			if (newPhrase == null)
+				newPhrase = phrase;
+		}
+
+		return newPhrase;
 	}
 
 	// private static Report generateReport(Interest interest,
