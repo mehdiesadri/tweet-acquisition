@@ -1,10 +1,12 @@
 package rc;
 
 import java.util.Collection;
+import java.util.Map;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import ta.TotalStatistics;
 import ta.UserStatistics;
 import conf.Interest;
 import conf.Phrase;
@@ -71,8 +73,32 @@ public class RelevanceCheck {
 	}
 
 	private static double getCluRelevance(Tweet tweet, Interest interest) {
-		// TODO Auto-generated method stub
-		return 0;
+		double rel = 0;
+		double maxRel = 0;
+		int count = 0;
+
+		for (Phrase phrase : interest.getPhrases()) {
+			if (!tweet.containsPhrase(phrase.getText())) {
+				Map<String, Integer> relevantPatterns = phrase.getStatistics()
+						.getFrequentRelevantPatterns();
+				for (String pattern : relevantPatterns.keySet()) {
+					String p = pattern.replaceAll(",", " ").trim();
+					if (tweet.containsPhrase(p)) {
+						double prel = (double) relevantPatterns.get(pattern)
+								/ phrase.getStatistics()
+										.getTotalRelevantTweetCount();
+						rel += prel;
+						count++;
+						if (prel > maxRel || maxRel == 0)
+							maxRel = prel;
+
+					}
+				}
+			}
+		}
+
+		rel = maxRel + (1 - maxRel) * (rel / (count - 1));
+		return rel;
 	}
 
 	private static double getUserRelevance(Tweet tweet, Interest interest) {

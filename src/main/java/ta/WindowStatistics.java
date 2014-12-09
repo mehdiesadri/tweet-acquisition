@@ -19,8 +19,10 @@ public class WindowStatistics {
 	private static final int minNumberOfTweets = 10;
 	private Map<String, Integer> relevantPatterns;
 	private Map<String, Integer> irrelevantPatterns;
-	private Map<String, Integer> hashtags;
-	private Map<String, Integer> mentions;
+	private Map<String, Integer> relevantHashtags;
+	private Map<String, Integer> irrelevantHashtags;
+	private Map<String, Integer> relevantMentions;
+	private Map<String, Integer> irrelevantMentions;
 
 	private int relevantTweetCount;
 	private int irrelevantTweetCount;
@@ -46,28 +48,14 @@ public class WindowStatistics {
 		relevantPatterns = new ConcurrentHashMap<String, Integer>();
 		irrelevantPatterns = new ConcurrentHashMap<String, Integer>();
 
-		hashtags = new ConcurrentHashMap<String, Integer>();
-		mentions = new ConcurrentHashMap<String, Integer>();
+		relevantHashtags = new ConcurrentHashMap<String, Integer>();
+		irrelevantHashtags = new ConcurrentHashMap<String, Integer>();
+		relevantMentions = new ConcurrentHashMap<String, Integer>();
+		irrelevantMentions = new ConcurrentHashMap<String, Integer>();
 	}
 
 	public void addTweet(Tweet tweet) {
 		double r = tweet.getRelevance();
-
-		for (HashtagEntity x : tweet.getStatus().getHashtagEntities()) {
-			String hashtag = x.getText().toLowerCase();
-			getHashtags().put(
-					hashtag,
-					getHashtags().containsKey(hashtag) ? getHashtags().get(
-							hashtag) + 1 : 1);
-		}
-
-		for (UserMentionEntity y : tweet.getStatus().getUserMentionEntities()) {
-			String mention = y.getText().toLowerCase();
-			getMentions().put(
-					mention,
-					getMentions().containsKey(mention) ? getMentions().get(
-							mention) + 1 : 1);
-		}
 
 		if (r > maxRelevance)
 			maxRelevance = r;
@@ -102,8 +90,10 @@ public class WindowStatistics {
 					|| Acquisition.getInterest().coverPhrase(phrase))
 				continue;
 
-			if (tweet.getRelevance() > Acquisition.getInterest()
-					.getTweetRelevanceThreshold()) {
+			if (r > Acquisition.getInterest().getTweetRelevanceThreshold()) {
+				addHashtags(tweet, relevantHashtags);
+				addMentions(tweet, relevantMentions);
+
 				if (getFrequentRelevantPatterns().containsKey(pattern)) {
 					getFrequentRelevantPatterns().put(pattern,
 							getFrequentRelevantPatterns().get(pattern) + 1);
@@ -111,6 +101,9 @@ public class WindowStatistics {
 					getFrequentRelevantPatterns().put(pattern, 1);
 				}
 			} else {
+				addHashtags(tweet, irrelevantHashtags);
+				addMentions(tweet, irrelevantMentions);
+
 				if (getFrequentIrrelevantPatterns().containsKey(pattern)) {
 					getFrequentIrrelevantPatterns().put(pattern,
 							getFrequentIrrelevantPatterns().get(pattern) + 1);
@@ -122,13 +115,33 @@ public class WindowStatistics {
 		}
 	}
 
-	public void finalize() {
+	private void addHashtags(Tweet tweet, Map<String, Integer> hashtags) {
+		for (HashtagEntity x : tweet.getStatus().getHashtagEntities()) {
+			String hashtag = x.getText().toLowerCase();
+			hashtags.put(hashtag,
+					hashtags.containsKey(hashtag) ? hashtags.get(hashtag) + 1
+							: 1);
+		}
+	}
+
+	private void addMentions(Tweet tweet, Map<String, Integer> mentions) {
+		for (UserMentionEntity y : tweet.getStatus().getUserMentionEntities()) {
+			String mention = y.getText().toLowerCase();
+			mentions.put(mention,
+					mentions.containsKey(mention) ? mentions.get(mention) + 1
+							: 1);
+		}
+	}
+
+	public void finalize(TotalStatistics totalStatistics) {
 		Map<String, Integer> trfp = new HashMap<String, Integer>();
 		if (getRelevantTweetCount() > minNumberOfTweets) {
 			for (Entry<String, Integer> y : relevantPatterns.entrySet()) {
 				if (((double) y.getValue() / relevantTweetCount) > newPhraseMinSup
-						&& y.getKey().length() > 2)
+						&& y.getKey().length() > 2) {
 					trfp.put(y.getKey(), y.getValue());
+					totalStatistics.addRelevant(y.getKey(), y.getValue());
+				}
 			}
 		}
 		relevantPatterns = trfp;
@@ -137,8 +150,10 @@ public class WindowStatistics {
 		if (getIrrelevantTweetCount() > minNumberOfTweets) {
 			for (Entry<String, Integer> y : irrelevantPatterns.entrySet()) {
 				if (((double) y.getValue() / irrelevantTweetCount) > newPhraseMinSup
-						&& y.getKey().length() > 2)
+						&& y.getKey().length() > 2) {
 					tifp.put(y.getKey(), y.getValue());
+					totalStatistics.addIrrelevant(y.getKey(), y.getValue());
+				}
 			}
 		}
 		irrelevantPatterns = tifp;
@@ -207,12 +222,19 @@ public class WindowStatistics {
 		this.irrelevantPatterns = frequentIrrelevantPatterns;
 	}
 
-	public Map<String, Integer> getHashtags() {
-		return hashtags;
+	public Map<String, Integer> getRelevantHashtags() {
+		return relevantHashtags;
 	}
 
-	public Map<String, Integer> getMentions() {
-		return mentions;
+	public Map<String, Integer> getIrrelevantHashtags() {
+		return irrelevantHashtags;
 	}
 
+	public Map<String, Integer> getRelevantMentions() {
+		return relevantMentions;
+	}
+
+	public Map<String, Integer> getIrrelevantMentions() {
+		return irrelevantMentions;
+	}
 }

@@ -58,32 +58,36 @@ public class QueryGenerator {
 			phrases.add(phrase);
 
 		logger.info("Total Interest's Phrase Count: " + phrases.size());
-
+		int phrasesToExploitCount = 0;
 		if (interest.getStatistics().getTotalTweetCount() > 0) {
 			Collection<? extends Phrase> phrasesToExploit = selectPhrasesToExploit(
 					phrases, exploitSize);
-			for (Phrase phrase : phrasesToExploit)
+			for (Phrase phrase : phrasesToExploit) {
 				if (phrase.getStatistics().getStatCount() > 0
 						&& !query.getPhrases().containsKey(phrase.getText())) {
 					phrase.getStatistics().addStat();
 					phrase.setLastUpdateTime(System.currentTimeMillis());
 					addPhraseToQuery(query, phrase);
 					phrases.remove(phrase);
+					phrasesToExploitCount++;
 				}
+			}
+
 			logger.info("Number of phrases to exploit: "
-					+ phrasesToExploit.size());
+					+ phrasesToExploitCount);
 		}
 
+		int phrasesToExploreCount = 0;
 		Collection<? extends Phrase> phrasesToExplore = selectPhrasesToExplore(
 				phrases, exploreSize);
 		for (Phrase phrase : phrasesToExplore) {
 			phrase.getStatistics().addStat();
 			phrase.setLastUpdateTime(System.currentTimeMillis());
 			addPhraseToQuery(query, phrase);
+			phrasesToExploreCount++;
 		}
 
-		logger.info("Number of phrases to explore: " + phrasesToExplore.size());
-
+		logger.info("Number of phrases to explore: " + phrasesToExploreCount);
 		return query;
 	}
 

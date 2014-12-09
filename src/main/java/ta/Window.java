@@ -151,9 +151,10 @@ public class Window implements Runnable {
 			}
 		}
 
-		statistics.finalize();
+		statistics.finalize(interest.getStatistics());
 		for (Phrase phrase : queryPhrases)
-			phrase.getStatistics().getLastWindowStatistics().finalize();
+			phrase.getStatistics().getLastWindowStatistics()
+					.finalize(phrase.getStatistics());
 
 		synchronized (this) {
 			done = true;
@@ -164,14 +165,24 @@ public class Window implements Runnable {
 		logger.info("Window Total Tweet Count: " + totalTweetCount);
 		logger.info("Window English Tweet Count: "
 				+ statistics.getTotalTweetCount());
+		logger.info("Window Total English Relevant Tweet Count: "
+				+ statistics.getRelevantTweetCount());
+		logger.info("Window Total English Irrelevant Tweet Count: "
+				+ statistics.getIrrelevantTweetCount());
+		logger.info("Window Avg  Tweet Relevance: "
+				+ statistics.getAvgRelevance());
+		logger.info("Window Min  Tweet Relevance: "
+				+ statistics.getMinRelevance());
+		logger.info("Window Max  Tweet Relevance: "
+				+ statistics.getMaxRelevance());
 		logger.info("Window Relevant English Tweet Count: "
 				+ statistics.getRelevantTweetCount());
 		logger.info("Window New User Count: " + newUserCount);
-		logger.info("Window Hashtag Count: " + statistics.getHashtags().size());
+		logger.info("Window Relevant Hashtag Count: "
+				+ statistics.getRelevantHashtags().size());
+		logger.info("Window Irrelevant Hashtag Count: "
+				+ statistics.getIrrelevantHashtags().size());
 		logger.info("Total User Count: " + interest.getUsers().size());
-
-		logger.info("Storage manager tweets count: "
-				+ StorageManager.getQueueSize());
 	}
 
 	private void store(Tweet tweet) {

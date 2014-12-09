@@ -104,8 +104,6 @@ public class InterestUpdater {
 					double termRelevanceToInterest = interestTermFreq == 0 ? interest
 							.getMinPhraseTermFreq() : interestTermFreq;
 					score += termSpecificity * termRelevanceToInterest;
-					logger.info(term + " " + termSpecificity + " "
-							+ termRelevanceToInterest);
 				}
 
 				score = score / (double) newPhrase.getTerms().length;
@@ -131,10 +129,13 @@ public class InterestUpdater {
 		}
 
 		if (newPhrasesEntrySet.size() > 0) {
-			interest.addPhrase(newPhrasesEntrySet.get(0).getKey());
-			logger.info("added phrase: "
-					+ newPhrasesEntrySet.get(0).getKey().getText() + " score: "
-					+ newPhrasesEntrySet.get(0).getValue());
+			for (int i = 0; i < Math.max(1,
+					(int) (.1 * newPhrasesEntrySet.size())); i++) {
+				interest.addPhrase(newPhrasesEntrySet.get(i).getKey());
+				logger.info("added phrase: "
+						+ newPhrasesEntrySet.get(i).getKey().getText()
+						+ " score: " + newPhrasesEntrySet.get(i).getValue());
+			}
 		}
 	}
 
@@ -142,16 +143,18 @@ public class InterestUpdater {
 		Phrase np = new Phrase();
 		String npt = "";
 		double mintf = 0;
+		double minitf = 0;
 		String term_mintf = "";
 		String[] terms = phrase.getTerms();
 
 		for (int i = 0; i < terms.length; i++) {
 			String term = terms[i];
 			double phraseTermFreq = interest.getPhraseTermFreq(term);
-			double tf = 1 / (phraseTermFreq == 0 ? 1 : (double) phraseTermFreq);
-			tf = tf * Acquisition.getTermCommonness(term);
+			double tf = (phraseTermFreq == 0 ? 1 : (double) phraseTermFreq)
+					* (1 - Acquisition.getTermCommonness(term));
 			if (tf < mintf || mintf == 0) {
 				mintf = tf;
+				minitf = phraseTermFreq;
 				term_mintf = term;
 			}
 		}
@@ -162,7 +165,11 @@ public class InterestUpdater {
 		}
 
 		np.setText(npt);
-		return np;
+
+		if (minitf > .2)
+			return np;
+		else
+			return phrase;
 	}
 
 	private static Phrase specializePhrase(Interest interest, Phrase phrase) {
