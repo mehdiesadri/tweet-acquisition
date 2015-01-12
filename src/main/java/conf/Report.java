@@ -1,23 +1,28 @@
 package conf;
 
-import java.util.HashMap;
-
 import org.bson.types.ObjectId;
+import org.mongodb.morphia.annotations.Embedded;
 import org.mongodb.morphia.annotations.Entity;
 import org.mongodb.morphia.annotations.Id;
+
+import ta.WindowStatistics;
 
 @Entity("report")
 public class Report {
 	@Id
 	private ObjectId id;
 	private String interestId;
-	private int tweetCount;
 	private long startTime;
 	private long endTime;
-	private HashMap<Integer, HashMap<String, Double>> itemsets;
-	private HashMap<String, Integer> terms;
+	private Integer totalTweetCount;
+	private WindowStatistics statistics;
 
-	public Report() {
+	public Report(ta.Window window) {
+		startTime = window.getStartTime();
+		endTime = window.getEndTime();
+		interestId = window.getInterestId();
+		totalTweetCount = window.getTotalTweetCount();
+		statistics = window.getStatistics();
 	}
 
 	public long getStartTime() {
@@ -36,35 +41,11 @@ public class Report {
 		this.endTime = endTime;
 	}
 
-	public int getTweetCount() {
-		return tweetCount;
-	}
-
-	public void setTweetCount(int tweetCount) {
-		this.tweetCount = tweetCount;
-	}
-
 	public String getInterestId() {
 		return interestId;
 	}
 
 	public void setInterestId(String interestId) {
 		this.interestId = interestId;
-	}
-
-	public HashMap<Integer, HashMap<String, Double>> getItemsets() {
-		return itemsets;
-	}
-
-	public void setItemsets(HashMap<Integer, HashMap<String, Double>> itemsets) {
-		this.itemsets = itemsets;
-	}
-
-	public HashMap<String, Integer> getSingles() {
-		return terms;
-	}
-
-	public void setSingles(HashMap<String, Integer> singles) {
-		this.terms = singles;
 	}
 }

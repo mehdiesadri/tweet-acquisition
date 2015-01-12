@@ -14,17 +14,17 @@ public class Query {
 	@Id
 	private ObjectId id;
 
-	private long startTime;
-	private long endTime;
-
 	@Embedded
 	private List<Location> locations;
+	@Embedded
+	private List<Long> users;
 	@Embedded
 	private HashMap<String, Phrase> phrases;
 
 	public Query() {
 		phrases = new HashMap<String, Phrase>();
 		locations = new ArrayList<Location>();
+		users = new ArrayList<Long>();
 	}
 
 	public void addLocation(Location location) {
@@ -33,6 +33,10 @@ public class Query {
 
 	public void addPhrase(Phrase phrase) {
 		this.phrases.put(phrase.getText(), phrase);
+	}
+
+	public void addUser(long userId) {
+		this.users.add(userId);
 	}
 
 	public List<Location> getLocations() {
@@ -51,19 +55,12 @@ public class Query {
 		this.locations = locations;
 	}
 
-	public long getStartTime() {
-		return startTime;
-	}
-
-	public void setStartTime(long startTime) {
-		this.startTime = startTime;
-	}
-
-	public long getEndTime() {
-		return endTime;
-	}
-
-	public void setEndTime(long endTime) {
-		this.endTime = endTime;
+	public boolean satisfy(Tweet tweet) {
+		for (String pText : phrases.keySet()) {
+			if (tweet.containsPhrase(pText)) {
+				return true;
+			}
+		}
+		return false;
 	}
 }

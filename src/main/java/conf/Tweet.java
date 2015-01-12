@@ -1,56 +1,76 @@
 package conf;
 
 import java.util.Date;
-import java.util.List;
+import java.util.HashSet;
 
 import org.mongodb.morphia.annotations.Entity;
 import org.mongodb.morphia.annotations.Id;
+import org.mongodb.morphia.annotations.Indexed;
+import org.mongodb.morphia.annotations.Serialized;
 import org.mongodb.morphia.annotations.Transient;
 
 import twitter4j.Status;
+import twitter4j.URLEntity;
 import txt.TextNormalizer;
 
 @Entity("tweet")
 public class Tweet {
 	@Id
 	private long id;
+
+	@Serialized
 	private Status status;
+	@Indexed
+	private long timestamp;
+	private double relevance;
 
 	@Transient
-	private double relevance;
-	private List<String> terms;
+	private HashSet<String> terms;
+
+	public Tweet() {
+	}
 
 	public Tweet(Status s) {
 		relevance = 0;
 		status = s;
-		if (getStatus() != null)
+		if (getStatus() != null) {
 			id = getStatus().getId();
+			timestamp = getStatus().getCreatedAt().getTime();
+		}
 	}
 
 	public boolean containsPhrase(String p) {
 		String[] pterms = p.split(" ");
 
 		for (String pt : pterms) {
-			boolean hasTerm = false;
-			for (String tt : this.getTerms()) {
-				if (pt.equals(tt)) {
-					hasTerm = true;
-					break;
-				}
-			}
-
-			if (!hasTerm)
+			if (!terms.contains(pt))
 				return false;
 		}
 
 		return true;
 	}
 
-	public List<String> getTerms() {
+	public HashSet<String> getTerms() {
 		if (terms == null) {
+			terms = new HashSet<String>();
 			String text = getStatus().getText();
-			terms = TextNormalizer.normalize(text);
+			for (URLEntity url : getStatus().getURLEntities()) {
+				String urltext = url.getExpandedURL().replace("http", "")
+						.replace("www", "");
+				String[] urlterms = urltext.split("[^A-Za-z]");
+				for (String ut : urlterms)
+					if (ut.length() > 3)
+						text += " " + ut;
+			}
+
+			if (getStatus().getRetweetedStatus() != null
+					&& !getStatus().getText().equals(
+							getStatus().getRetweetedStatus().getText()))
+				text += " " + getStatus().getRetweetedStatus().getText();
+
+			terms.addAll(TextNormalizer.normalize(text));
 		}
+
 		return terms;
 	}
 
@@ -60,10 +80,6 @@ public class Tweet {
 
 	public Date getTime() {
 		return getStatus().getCreatedAt();
-	}
-
-	public long getTimeStamp() {
-		return getTime().getTime();
 	}
 
 	public long getUserID() {
@@ -86,5 +102,13 @@ public class Tweet {
 
 	public void setRelevance(double relevance) {
 		this.relevance = relevance;
+	}
+
+	public long getTimestamp() {
+		return timestamp;
+	}
+
+	public void setTimestamp(long timestamp) {
+		this.timestamp = timestamp;
 	}
 }

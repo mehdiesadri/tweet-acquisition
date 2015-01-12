@@ -2,6 +2,7 @@ package conf;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 
 import org.mongodb.morphia.annotations.Embedded;
@@ -21,6 +22,8 @@ public class Phrase {
 	private long lastUpdateTime;
 	@Transient
 	private TotalStatistics statistics;
+	@Transient
+	private HashSet<String> terms;
 
 	// private Location location;
 
@@ -37,18 +40,27 @@ public class Phrase {
 	}
 
 	public boolean coverPhrase(String p) {
+		// it means if p has all this phrase terms
+		HashSet<String> pts = new HashSet<String>();
+		for (String pt : p.split(" ")) {
+			pt = pt.trim();
+			pts.add(pt);
+		}
+
+		for (String tt : this.getTerms()) {
+			if (!pts.contains(tt))
+				return false;
+		}
+
+		return true;
+	}
+
+	public boolean containPhrase(String p) {
 		String[] pterms = p.split(" ");
 
 		for (String pt : pterms) {
-			boolean hasTerm = false;
-			for (String tt : this.getTerms()) {
-				if (pt.equals(tt)) {
-					hasTerm = true;
-					break;
-				}
-			}
-
-			if (!hasTerm)
+			pt = pt.trim();
+			if (!getTerms().contains(pt))
 				return false;
 		}
 
@@ -57,9 +69,9 @@ public class Phrase {
 
 	public boolean equals(String p) {
 		String[] pterms = p.split(" ");
-		String[] tterms = this.getTerms();
+		HashSet<String> tterms = this.getTerms();
 
-		if (pterms.length != tterms.length)
+		if (pterms.length != tterms.size())
 			return false;
 
 		for (String pt : pterms) {
@@ -78,8 +90,16 @@ public class Phrase {
 		return true;
 	}
 
-	public String[] getTerms() {
-		return text.split(" ");
+	public HashSet<String> getTerms() {
+		if (terms == null) {
+			terms = new HashSet<String>();
+			for (String term : getText().split(" ")) {
+				term = term.trim();
+				terms.add(term);
+			}
+		}
+
+		return terms;
 	}
 
 	public String getText() {
@@ -91,7 +111,7 @@ public class Phrase {
 	}
 
 	public void setText(String txt) {
-		this.text = normalizePhraseText(txt);
+		this.text = normalizePhraseText(txt).toLowerCase();
 	}
 
 	public void setWeight(double wgt) {
@@ -154,5 +174,9 @@ public class Phrase {
 				.getLastWindowStatistics();
 		if (lastWindowStatistics != null)
 			lastWindowStatistics.addTweet(tweet);
+	}
+
+	public boolean hasTerm(String term) {
+		return terms.contains(term);
 	}
 }

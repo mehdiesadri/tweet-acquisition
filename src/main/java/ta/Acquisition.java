@@ -17,18 +17,23 @@ import qg.InterestUpdater;
 import qg.QueryGenerator;
 import stm.StorageManager;
 import twit.TwitterListener;
+import twit.TwitterSimulator;
 import txt.TextNormalizer;
 import conf.ConfigMgr;
 import conf.Interest;
 import conf.Query;
+import conf.Report;
 import conf.Tweet;
 
 public class Acquisition implements Runnable {
 	final static Logger logger = LogManager.getLogger(Acquisition.class
 			.getName());
 
-	private volatile static Acquisition instance = null;
+	private static final String termCommonnessHost = "128.195.53.246";
+	private static final int termCommonnessPort = 9090;
+	public static final long MinWindowLength = 5 * 60 * 1000;
 
+	private volatile static Acquisition instance = null;
 	public static boolean running;
 	public volatile static Boolean languageCheck;
 	public volatile static LanguageClassifier languageClassifier;
@@ -39,7 +44,8 @@ public class Acquisition implements Runnable {
 	private volatile static int windowSize;
 	private volatile static Window window;
 	private volatile static Query query;
-	private static boolean simulate;
+	private static boolean simulating;
+	private static TwitterSimulator simulator;
 	private volatile static int tweetCount;
 
 	private static Thread t_ac;
@@ -52,8 +58,11 @@ public class Acquisition implements Runnable {
 		languageCheckInitialization();
 		windowSize = Integer.valueOf(ConfigMgr
 				.readConfigurationParameter("AcquisitionStartWindowSize"));
-		simulate = Boolean.valueOf(ConfigMgr
+		simulating = Boolean.valueOf(ConfigMgr
 				.readConfigurationParameter("UseSimulator"));
+
+		if (isSimulating())
+			simulator = new TwitterSimulator();
 
 		running = false;
 		tweetCount = 0;
@@ -88,13 +97,15 @@ public class Acquisition implements Runnable {
 		while (running) {
 			try {
 				query = QueryGenerator.generate(interest);
+				StorageManager.storeQuery(query);
 				startNewWindow();
 
-				if (simulate) {
-					// StorageManager.simulate();
+				if (isSimulating()) {
+					simulator.start();
 					logger.info("Simulation is started.");
 				} else {
 					startNewListener();
+					logger.info("Listening is started.");
 				}
 
 				synchronized (window) {
@@ -106,6 +117,9 @@ public class Acquisition implements Runnable {
 						window.wait();
 					logger.info("window processing has been done.");
 				}
+
+				Report report = new Report(getCurrentWindow());
+				StorageManager.storeReport(report);
 
 				if (interest.getOldestPhraseUpdateTime() >= lastInterestUpdateTime)
 					InterestUpdater.update(interest);
@@ -146,8 +160,6 @@ public class Acquisition implements Runnable {
 		t_tl = new Thread(listener);
 		t_tl.setName("t_tl");
 		t_tl.start();
-
-		logger.info("Listening is started.");
 	}
 
 	public synchronized static void startNewWindow() {
@@ -205,10 +217,8 @@ public class Acquisition implements Runnable {
 	}
 
 	public static double getTermCommonness(String term) {
-		String serverName = "128.195.53.246";
-		int port = 9090;
 		try {
-			Socket client = new Socket(serverName, port);
+			Socket client = new Socket(termCommonnessHost, termCommonnessPort);
 			DataOutputStream out = new DataOutputStream(
 					client.getOutputStream());
 			out.writeUTF(term.trim());
@@ -223,5 +233,9 @@ public class Acquisition implements Runnable {
 		}
 
 		return .5;
+	}
+
+	public static boolean isSimulating() {
+		return simulating;
 	}
 }

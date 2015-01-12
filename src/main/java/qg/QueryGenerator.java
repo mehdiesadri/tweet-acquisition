@@ -11,7 +11,6 @@ import org.apache.logging.log4j.Logger;
 
 import conf.ConfigMgr;
 import conf.Interest;
-import conf.Location;
 import conf.Phrase;
 import conf.Query;
 
@@ -95,8 +94,10 @@ public class QueryGenerator {
 		List<String> toBeRemoved = new ArrayList<String>();
 		for (String pstr : query.getPhrases().keySet()) {
 			Phrase queryPhrase = query.getPhrases().get(pstr);
-			if (queryPhrase.coverPhrase(phrase.getText()))
+			if (phrase.coverPhrase(queryPhrase.getText()))
 				toBeRemoved.add(pstr);
+			if (query.getPhrases().get(pstr).coverPhrase(phrase.getText()))
+				return;
 		}
 
 		for (String pstr : toBeRemoved)
@@ -117,8 +118,10 @@ public class QueryGenerator {
 		});
 
 		for (int i = 0; i < exploitSize; i++) {
-			if (i < phrases.size())
-				ps.add(phrases.get(i));
+			if (i >= phrases.size())
+				break;
+			Phrase phrase = phrases.get(i);
+			addPhraseToList(ps, phrase);
 		}
 
 		return ps;
@@ -132,8 +135,8 @@ public class QueryGenerator {
 				int c;
 				c = Double.valueOf(o2.getWeight()).compareTo(o1.getWeight());
 				if (c == 0)
-					c = Integer.valueOf(o2.getTerms().length).compareTo(
-							o1.getTerms().length);
+					c = Integer.valueOf(o2.getTerms().size()).compareTo(
+							o1.getTerms().size());
 				if (c == 0)
 					c = Long.valueOf(o2.getLastUpdateTime()).compareTo(
 							o1.getLastUpdateTime());
@@ -142,35 +145,34 @@ public class QueryGenerator {
 		});
 
 		for (int i = 0; i < exploreSize; i++) {
-			if (i < phrases.size())
-				ps.add(phrases.get(i));
+			if (i >= phrases.size())
+				break;
+			Phrase phrase = phrases.get(i);
+			addPhraseToList(ps, phrase);
 		}
 
 		return ps;
 	}
 
-	private static boolean covered(String phrase1, String phrase2) {
-		List<String> words1 = new ArrayList<String>();
-		List<String> words2 = new ArrayList<String>();
-
-		for (String word : phrase1.split(" "))
-			words1.add(word);
-
-		for (String word : phrase2.split(" "))
-			words2.add(word);
-
-		if (words1.size() <= words2.size()) {
-			for (String word : words1) {
-				if (!words2.contains(word))
-					return false;
+	private static void addPhraseToList(List<Phrase> ps, Phrase phrase) {
+		List<Phrase> covering = new ArrayList<Phrase>();
+		for (Phrase p : ps) {
+			if (phrase.coverPhrase(p.getText())
+					|| p.coverPhrase(phrase.getText())) {
+				covering.add(p);
 			}
-			return true;
-		} else {
-			for (String word : words2) {
-				if (!words1.contains(word))
-					return false;
-			}
-			return true;
 		}
+
+		int count = 0;
+		for (Phrase p : covering) {
+			if (phrase.coverPhrase(p.getText())) {
+				ps.remove(p);
+				count++;
+			}
+		}
+
+		if (count <= covering.size())
+			ps.add(phrase);
 	}
+
 }

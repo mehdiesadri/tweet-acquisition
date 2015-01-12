@@ -1,5 +1,7 @@
 package ta;
 
+import twitter4j.User;
+import conf.Interest;
 import conf.Tweet;
 
 public class UserStatistics {
@@ -27,7 +29,8 @@ public class UserStatistics {
 			maxRelevance = r;
 		if (r < minRelevance || minRelevance == 0)
 			minRelevance = r;
-		if (r >= Acquisition.getInterest().getTweetRelevanceThreshold())
+		Interest interest = Acquisition.getInterest();
+		if (r >= interest.getTweetRelevanceThreshold())
 			relevantTweetCount++;
 		else
 			irrelevantTweetCount++;
@@ -35,8 +38,9 @@ public class UserStatistics {
 		avgRelevance = ((double) (getTotalTweetCount() - 1) * avgRelevance + r)
 				/ (double) getTotalTweetCount();
 
-		if (!screenName.equals(tweet.getStatus().getUser().getScreenName()))
-			screenName = tweet.getStatus().getUser().getScreenName();
+		User user = tweet.getStatus().getUser();
+		if (!screenName.equals(user.getScreenName()))
+			screenName = user.getScreenName();
 	}
 
 	public double getMaxRelevance() {

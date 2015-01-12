@@ -1,12 +1,13 @@
 package rc;
 
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.Map;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import ta.TotalStatistics;
 import ta.UserStatistics;
 import conf.Interest;
 import conf.Phrase;
@@ -20,26 +21,49 @@ public class RelevanceCheck {
 		// for the relevance check of new phrases
 		double satisfaction = 0;
 
-		String[] phraseTerms = phrase.getTerms();
+		HashSet<String> phraseTerms = phrase.getTerms();
 		for (String pterm : phraseTerms) {
 			pterm = pterm.trim();
 			satisfaction += interest.getPhraseTermFreq(pterm);
 		}
 
-		if (phraseTerms.length > 0)
-			return satisfaction / ((double) phraseTerms.length);
+		if (phraseTerms.size() > 0)
+			return satisfaction / ((double) phraseTerms.size());
 
 		return 0;
 	}
 
 	public synchronized static double getRelevance(Tweet tweet,
 			Interest interest) {
+		double phraseRel = getPhraseRelevance(tweet, interest);
+		double cluRel = getCluRelevance(tweet, interest);
+		double userRel = getUserRelevance(tweet, interest);
+
+		double[] rels = new double[] { phraseRel, cluRel, userRel };
+		Arrays.sort(rels);
+
+		double relevance = rels[2] + ((1 - rels[2]) * rels[1])
+				+ (1 - rels[2] + ((1 - rels[2]) * rels[1])) * rels[0];
+		// logger.info(String.format("%.2f", relevance) + "\t["
+		// + String.format("%.2f", phraseRel) + "\t"
+		// + (cluRel > 0 ? "** " : "   ") + String.format("%.2f", cluRel)
+		// + "\t" + (userRel > 0 ? "** " : "   ")
+		// + String.format("%.2f", userRel) + "]\t" + tweet.getTerms());
+
+		return relevance > 1 ? 1 : relevance;
+	}
+
+	private static double getPhraseRelevance(Tweet tweet, Interest interest) {
 		double maxSatisfaction = 0;
 		double phraseRel = 0;
 
 		Collection<Phrase> phrases = interest.getPhrases();
 		synchronized (phrases) {
 			for (Phrase phrase : phrases) {
+				if (!phrase.isInitial())
+					continue;
+				// todo: check phrase relevance only after certain amount of
+				// certainity
 				double satisfaction = getSatisfaction(tweet, interest, phrase)
 						* phrase.getWeight();
 				if (satisfaction > maxSatisfaction)
@@ -53,23 +77,7 @@ public class RelevanceCheck {
 		if (interest.getWeightSum() > 1)
 			subRelevance = phraseRel / (double) (interest.getWeightSum() - 1);
 		phraseRel = maxSatisfaction + subRelevance * (1 - maxSatisfaction);
-
-		double cluRel = getCluRelevance(tweet, interest);
-		double userRel = getUserRelevance(tweet, interest);
-
-		double relevance = 0;
-		if (userRel > 0 && cluRel > 0) {
-			relevance = .3 * userRel + .4 * cluRel + .3 * phraseRel;
-		} else if (userRel > 0) {
-			relevance = .4 * userRel + .6 * phraseRel;
-		} else if (cluRel > 0) {
-			relevance = .5 * cluRel + .5 * phraseRel;
-		} else {
-			relevance = phraseRel;
-		}
-
-		relevance = relevance > 1 ? 1 : relevance;
-		return relevance;
+		return phraseRel;
 	}
 
 	private static double getCluRelevance(Tweet tweet, Interest interest) {
@@ -78,27 +86,49 @@ public class RelevanceCheck {
 		int count = 0;
 
 		for (Phrase phrase : interest.getPhrases()) {
-			if (!tweet.containsPhrase(phrase.getText())) {
-				Map<String, Integer> relevantPatterns = phrase.getStatistics()
-						.getFrequentRelevantPatterns();
-				for (String pattern : relevantPatterns.keySet()) {
-					String p = pattern.replaceAll(",", " ").trim();
-					if (tweet.containsPhrase(p)) {
-						double prel = (double) relevantPatterns.get(pattern)
-								/ phrase.getStatistics()
-										.getTotalRelevantTweetCount();
-						rel += prel;
-						count++;
-						if (prel > maxRel || maxRel == 0)
-							maxRel = prel;
+			if (tweet.containsPhrase(phrase.getText()))
+				continue;
 
+			Map<String, Integer> relevantPatterns = phrase.getStatistics()
+					.getFrequentRelevantPatterns();
+			for (String pattern : relevantPatterns.keySet()) {
+				String p = pattern.replaceAll(",", " ").trim();
+				boolean flag = false;
+				for (Phrase ip : interest.getPhrases()) {
+					if (ip.containPhrase(p)) {
+						flag = true;
+						break;
 					}
+				}
+
+				if (flag)
+					continue;
+
+				if (tweet.containsPhrase(p)) {
+					double prel = (double) relevantPatterns.get(pattern)
+							/ (double) phrase.getStatistics()
+									.getTotalRelevantTweetCount();
+					count++;
+					// logger.info(phrase.getText() + "\t~\t" + pattern + "\t"
+					// + prel);
+					if (prel > maxRel || maxRel == 0)
+						maxRel = prel;
+					else
+						rel += prel;
+
+					if (rel > 1)
+						return 1;
 				}
 			}
 		}
 
-		rel = maxRel + (1 - maxRel) * (rel / (count - 1));
-		return rel;
+		rel = Math.abs(maxRel
+				+ (count > 1 ? (1 - maxRel) * (rel / (count - 1)) : 0));
+
+		if (Double.isNaN(rel))
+			rel = 0;
+
+		return rel > 1 ? 1 : rel;
 	}
 
 	private static double getUserRelevance(Tweet tweet, Interest interest) {
@@ -106,9 +136,12 @@ public class RelevanceCheck {
 				.getUserID());
 		if (userStatistics != null) {
 			double totalAvgRelevance = userStatistics.getAvgRelevance();
-			if (!Double.isNaN(totalAvgRelevance))
-				return totalAvgRelevance;
+			if (!Double.isNaN(totalAvgRelevance)) {
+				double r = totalAvgRelevance > 1 ? 1 : totalAvgRelevance;
+				return r;
+			}
 		}
+
 		return 0;
 	}
 
@@ -117,7 +150,7 @@ public class RelevanceCheck {
 		double satisfaction = 0;
 		int matchCount = 0;
 
-		String[] phraseTerms = phrase.getTerms();
+		HashSet<String> phraseTerms = phrase.getTerms();
 		for (String pterm : phraseTerms) {
 			pterm = pterm.trim();
 			for (String tterm : tweet.getTerms()) {
@@ -131,11 +164,14 @@ public class RelevanceCheck {
 			}
 		}
 
-		if (phraseTerms.length == matchCount)
+		if (phraseTerms.size() == matchCount)
 			return 1;
 
-		if (phraseTerms.length > 0)
-			return satisfaction / (double) (phraseTerms.length);
+		if (phraseTerms.size() > 0) {
+			double s = satisfaction / (double) (phraseTerms.size());
+			return s;
+		}
+
 		return 0;
 	}
 

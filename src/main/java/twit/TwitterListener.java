@@ -110,8 +110,7 @@ public class TwitterListener implements Runnable {
 				.setOAuthConsumerKey(
 						ConfigMgr.readConfigurationParameter("ConsumerKey"))
 				.setOAuthConsumerSecret(
-						ConfigMgr
-								.readConfigurationParameter("ConsumerSecret"))
+						ConfigMgr.readConfigurationParameter("ConsumerSecret"))
 				.setOAuthAccessToken(
 						ConfigMgr.readConfigurationParameter("AccessToken"))
 				.setOAuthAccessTokenSecret(

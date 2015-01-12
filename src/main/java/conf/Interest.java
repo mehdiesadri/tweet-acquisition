@@ -131,6 +131,15 @@ public class Interest {
 		return false;
 	}
 
+	public boolean phraseCovers(Phrase phrase) {
+		for (Phrase p : phrases.values()) {
+			if (phrase.coverPhrase(p.getText()))
+				return true;
+		}
+
+		return false;
+	}
+
 	public String getId() {
 		return String.valueOf(id);
 	}

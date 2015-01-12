@@ -24,17 +24,21 @@ MongoDBResultMetadataCollection=metadata
 MongoDBStoreUserInfo=true
 
 #AcquisitionModule
-AcquisitionPhraseRelevanceThreshold=.03
-AcquisitionTweetRelevanceThreshold=.05
+AcquisitionTweetRelevanceThreshold=.5
 AcquisitionPhraseLimit=400
 AcquisitionLocationLimit=250
 AcquisitionUserLimit=250
 AcquisitionEEFraction=.25
-AcquisitionStartWindowSize=5000
+AcquisitionStartWindowSize=1000
 AcquisitionHost=localhost
 AcquisitionPort=4400
-AcquisitionNewPhraseMinSup=.2
+AcquisitionNewPhraseMinSup=.1
 AcquisitionNewPhraseMaxLength=4
+
+#Simulation
+UseSimulator=false
+SimulationDBName=sample
+SimulationLimit=10000
 
 #AnalysisModule
 AnalysisHost=localhost
@@ -49,13 +53,6 @@ LanguageCheckThreshold=.5
 LanguageCheckSimilarityThreshold=.25
 LanguageCheckDictionaryPath=../resources/MASTER
 LanguageCheckAddOns=yur, btw, lol, lmao, omg, wtf, wth, pls
-
-#Simulation
-UseSimulator=false
-SimulationDBHost=localhost
-SimulationDBName=sandy
-SimulationDBCollectionName=first
-SimulationLimit=10000
 
 #RESOURCES
 DataPath=../data/

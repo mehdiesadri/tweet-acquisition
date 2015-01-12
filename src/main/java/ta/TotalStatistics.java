@@ -1,19 +1,38 @@
 package ta;
 
+import java.util.ArrayList;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 public class TotalStatistics {
-	private static final int maxNumStats = 10;
-	LinkedList<WindowStatistics> stats;
-	private Map<String, Integer> relevantPatterns;
-	private Map<String, Integer> irrelevantPatterns;
+	final static Logger logger = LogManager.getLogger(TotalStatistics.class
+			.getName());
+
+	private static final int maxNumStats = 3;
+
+	private volatile int relevantTweetCount;
+	private volatile int irrelevantTweetCount;
+
+	private volatile LinkedList<WindowStatistics> stats;
+
+	private volatile Map<String, Integer> relevantPatterns;
+	private volatile Map<String, Integer> irrelevantPatterns;
+	private volatile Map<String, Integer> relevantHashtags;
+	private volatile Map<String, Integer> irrelevantHashtags;
 
 	public TotalStatistics() {
+		setRelevantTweetCount(0);
+		setIrrelevantTweetCount(0);
 		stats = new LinkedList<WindowStatistics>();
 		relevantPatterns = new ConcurrentHashMap<String, Integer>();
 		irrelevantPatterns = new ConcurrentHashMap<String, Integer>();
+		relevantHashtags = new ConcurrentHashMap<String, Integer>();
+		irrelevantHashtags = new ConcurrentHashMap<String, Integer>();
 	}
 
 	public double getTotalAvgRelevance() {
@@ -50,8 +69,30 @@ public class TotalStatistics {
 	public synchronized void addStat() {
 		WindowStatistics stat = new WindowStatistics();
 		stats.push(stat);
-		if (stats.size() > maxNumStats)
+		setRelevantTweetCount(getRelevantTweetCount()
+				+ stat.getRelevantTweetCount());
+		setIrrelevantTweetCount(getIrrelevantTweetCount()
+				+ stat.getIrrelevantTweetCount());
+		if (stats.size() > maxNumStats) {
 			stats.removeLast();
+			clean(relevantPatterns, relevantTweetCount);
+			clean(irrelevantPatterns, irrelevantTweetCount);
+			clean(relevantHashtags, relevantTweetCount);
+			clean(irrelevantHashtags, irrelevantTweetCount);
+		}
+
+		System.gc();
+	}
+
+	private void clean(Map<String, Integer> hashmap, int totalCount) {
+		List<String> toBeRemoved = new ArrayList<String>();
+		for (String p : hashmap.keySet()) {
+			if (((double) hashmap.get(p) / (double) totalCount) < .001)
+				toBeRemoved.add(p);
+		}
+
+		for (String tbr : toBeRemoved)
+			hashmap.remove(tbr);
 	}
 
 	public WindowStatistics getLastWindowStatistics() {
@@ -64,12 +105,6 @@ public class TotalStatistics {
 		return stats.size();
 	}
 
-	public void getRelevantPatterns() {
-		for (WindowStatistics stat : stats) {
-			Map<String, Integer> x = stat.getFrequentRelevantPatterns();
-		}
-	}
-
 	public Map<String, Integer> getFrequentIrrelevantPatterns() {
 		return irrelevantPatterns;
 	}
@@ -78,16 +113,53 @@ public class TotalStatistics {
 		return relevantPatterns;
 	}
 
-	public void addRelevant(String key, Integer value) {
+	public Map<String, Integer> getFrequentIrrelevantHashtags() {
+		return irrelevantHashtags;
+	}
+
+	public Map<String, Integer> getFrequentRelevantHashtags() {
+		return relevantHashtags;
+	}
+
+	public void addRelevantPattern(String key, Integer value) {
 		relevantPatterns.put(key,
 				relevantPatterns.containsKey(key) ? relevantPatterns.get(key)
 						+ value : value);
 	}
 
-	public void addIrrelevant(String key, Integer value) {
+	public void addIrrelevantPattern(String key, Integer value) {
 		irrelevantPatterns.put(
 				key,
 				irrelevantPatterns.containsKey(key) ? irrelevantPatterns
 						.get(key) + value : value);
+	}
+
+	public void addRelevantHashtag(String key, Integer value) {
+		relevantHashtags.put(key,
+				relevantHashtags.containsKey(key) ? relevantHashtags.get(key)
+						+ value : value);
+	}
+
+	public void addIrrelevantHashtag(String key, Integer value) {
+		irrelevantHashtags.put(
+				key,
+				irrelevantHashtags.containsKey(key) ? irrelevantHashtags
+						.get(key) + value : value);
+	}
+
+	public int getRelevantTweetCount() {
+		return relevantTweetCount;
+	}
+
+	public void setRelevantTweetCount(int relevantTweetCount) {
+		this.relevantTweetCount = relevantTweetCount;
+	}
+
+	public int getIrrelevantTweetCount() {
+		return irrelevantTweetCount;
+	}
+
+	public void setIrrelevantTweetCount(int irrelevantTweetCount) {
+		this.irrelevantTweetCount = irrelevantTweetCount;
 	}
 }

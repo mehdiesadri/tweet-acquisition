@@ -25,8 +25,10 @@ public class StorageManager implements Runnable {
 
 	private volatile static BlockingQueue<Tweet> tweets;
 	private volatile Morphia morphia = new Morphia();
+
 	private volatile static boolean storeUserInfo = false;
 	private volatile static Datastore datastore;
+	private volatile static Datastore simulationdatastore;
 
 	private static boolean running;
 	private static Thread t_sm;
@@ -54,11 +56,30 @@ public class StorageManager implements Runnable {
 				.map(Interest.class).map(Report.class);
 		datastore = morphia.createDatastore(m, database);
 		tweets = new LinkedBlockingQueue<Tweet>();
+
+		boolean simulate = Boolean.valueOf(ConfigMgr
+				.readConfigurationParameter("UseSimulator"));
+		String simulationDatabase = ConfigMgr
+				.readConfigurationParameter("SimulationDBName");
+		if (simulate) {
+			simulationdatastore = morphia
+					.createDatastore(m, simulationDatabase);
+			simulationdatastore.ensureIndexes();
+		}
 	}
 
 	public synchronized static StorageManager getInstance() {
 		if (instance == null) {
 			instance = new StorageManager();
+			StorageManager.t_sm = new Thread(instance);
+			StorageManager.t_sm.setName("t_sm");
+		}
+		return instance;
+	}
+
+	public synchronized static StorageManager getInstance(String database) {
+		if (instance == null) {
+			instance = new StorageManager(database);
 			StorageManager.t_sm = new Thread(instance);
 			StorageManager.t_sm.setName("t_sm");
 		}
@@ -86,6 +107,17 @@ public class StorageManager implements Runnable {
 				e.printStackTrace();
 			}
 		}
+	}
+
+	public synchronized static org.mongodb.morphia.query.Query<Tweet> getSimulationQuery() {
+		org.mongodb.morphia.query.Query<Tweet> query = null;
+		if (simulationdatastore != null) {
+			org.mongodb.morphia.query.Query<Tweet> q = simulationdatastore
+					.createQuery(Tweet.class);
+			query = q.order("-timestamp");
+		}
+
+		return query;
 	}
 
 	public synchronized static void addTweet(Tweet tweet) {
@@ -134,7 +166,6 @@ public class StorageManager implements Runnable {
 
 	public void main(String[] args) throws Exception {
 		Query q = new Query();
-		q.setStartTime(765);
 		Phrase phrase = new Phrase();
 		phrase.setText("iran");
 		q.addPhrase(phrase);
@@ -146,10 +177,10 @@ public class StorageManager implements Runnable {
 	}
 
 	public static void removeAll() {
-		datastore.delete(datastore.createQuery(User.class));
+		// datastore.delete(datastore.createQuery(User.class));
 		datastore.delete(datastore.createQuery(Query.class));
 		datastore.delete(datastore.createQuery(Report.class));
-		datastore.delete(datastore.createQuery(Tweet.class));
+		// datastore.delete(datastore.createQuery(Tweet.class));
 	}
 
 	public static void close() {
@@ -158,7 +189,7 @@ public class StorageManager implements Runnable {
 			storeTweet(tweet);
 	}
 
-	private static void storeTweet(Tweet tweet) {
+	public static void storeTweet(Tweet tweet) {
 		datastore.save(tweet);
 
 		if (storeUserInfo) {
