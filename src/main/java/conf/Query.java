@@ -6,18 +6,17 @@ import java.util.List;
 
 import org.bson.types.ObjectId;
 import org.mongodb.morphia.annotations.Embedded;
-import org.mongodb.morphia.annotations.Entity;
 import org.mongodb.morphia.annotations.Id;
 
-@Entity("query")
+@Embedded("query")
 public class Query {
 	@Id
 	private ObjectId id;
 
 	@Embedded
 	private List<Location> locations;
-	@Embedded
 	private List<Long> users;
+
 	@Embedded
 	private HashMap<String, Phrase> phrases;
 

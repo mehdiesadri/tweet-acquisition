@@ -1,24 +1,27 @@
 package ta;
 
-import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
+import util.MapUtil;
 
 public class TotalStatistics {
 	final static Logger logger = LogManager.getLogger(TotalStatistics.class
 			.getName());
 
-	private static final int maxNumStats = 3;
-
-	private volatile int relevantTweetCount;
-	private volatile int irrelevantTweetCount;
-
 	private volatile LinkedList<WindowStatistics> stats;
+
+	private volatile AtomicInteger totalTweetCount;
+	private volatile AtomicInteger relevantTweetCount;
+	private volatile AtomicInteger irrelevantTweetCount;
+	private volatile AtomicInteger deltaTweetCount;
 
 	private volatile Map<String, Integer> relevantPatterns;
 	private volatile Map<String, Integer> irrelevantPatterns;
@@ -26,73 +29,17 @@ public class TotalStatistics {
 	private volatile Map<String, Integer> irrelevantHashtags;
 
 	public TotalStatistics() {
-		setRelevantTweetCount(0);
-		setIrrelevantTweetCount(0);
+		totalTweetCount = new AtomicInteger(0);
+		relevantTweetCount = new AtomicInteger(0);
+		irrelevantTweetCount = new AtomicInteger(0);
+		deltaTweetCount = new AtomicInteger(0);
+
 		stats = new LinkedList<WindowStatistics>();
+
 		relevantPatterns = new ConcurrentHashMap<String, Integer>();
 		irrelevantPatterns = new ConcurrentHashMap<String, Integer>();
 		relevantHashtags = new ConcurrentHashMap<String, Integer>();
 		irrelevantHashtags = new ConcurrentHashMap<String, Integer>();
-	}
-
-	public double getTotalAvgRelevance() {
-		double r = 0;
-		int count = 0;
-		for (WindowStatistics stat : stats) {
-			count += stat.getTotalTweetCount();
-			r += stat.getAvgRelevance() * (double) stat.getTotalTweetCount();
-		}
-		return r / (double) count;
-	}
-
-	public int getTotalTweetCount() {
-		int count = 0;
-		for (WindowStatistics stat : stats)
-			count += stat.getTotalTweetCount();
-		return count;
-	}
-
-	public int getTotalRelevantTweetCount() {
-		int count = 0;
-		for (WindowStatistics stat : stats)
-			count += stat.getRelevantTweetCount();
-		return count;
-	}
-
-	public int getTotalIrrelevantTweetCount() {
-		int count = 0;
-		for (WindowStatistics stat : stats)
-			count += stat.getIrrelevantTweetCount();
-		return count;
-	}
-
-	public synchronized void addStat() {
-		WindowStatistics stat = new WindowStatistics();
-		stats.push(stat);
-		setRelevantTweetCount(getRelevantTweetCount()
-				+ stat.getRelevantTweetCount());
-		setIrrelevantTweetCount(getIrrelevantTweetCount()
-				+ stat.getIrrelevantTweetCount());
-		if (stats.size() > maxNumStats) {
-			stats.removeLast();
-			clean(relevantPatterns, relevantTweetCount);
-			clean(irrelevantPatterns, irrelevantTweetCount);
-			clean(relevantHashtags, relevantTweetCount);
-			clean(irrelevantHashtags, irrelevantTweetCount);
-		}
-
-		System.gc();
-	}
-
-	private void clean(Map<String, Integer> hashmap, int totalCount) {
-		List<String> toBeRemoved = new ArrayList<String>();
-		for (String p : hashmap.keySet()) {
-			if (((double) hashmap.get(p) / (double) totalCount) < .001)
-				toBeRemoved.add(p);
-		}
-
-		for (String tbr : toBeRemoved)
-			hashmap.remove(tbr);
 	}
 
 	public WindowStatistics getLastWindowStatistics() {
@@ -101,24 +48,74 @@ public class TotalStatistics {
 		return null;
 	}
 
+	public WindowStatistics addNewStat() {
+		WindowStatistics newStat = new WindowStatistics(this);
+
+		stats.push(newStat);
+
+		if (stats.size() > Acquisition.maxNumberStats) {
+			stats.removeLast();
+
+			clean(relevantPatterns, getRelevantTweetCount());
+			clean(irrelevantPatterns, getIrrelevantTweetCount());
+			clean(relevantHashtags, getRelevantTweetCount());
+			clean(irrelevantHashtags, getIrrelevantTweetCount());
+
+			System.gc();
+		}
+
+		return newStat;
+	}
+
+	public void addStatInfo(WindowStatistics stat) {
+		setTotalTweetCount(getTotalTweetCount() + stat.getTotalTweetCount());
+		setRelevantTweetCount(getRelevantTweetCount()
+				+ stat.getRelevantTweetCount());
+		setIrrelevantTweetCount(getIrrelevantTweetCount()
+				+ stat.getIrrelevantTweetCount());
+		setDeltaTweetCount(getDeltaTweetCount() + stat.getDeltaTweetCount());
+	}
+
+	private void clean(Map<String, Integer> input, int totalCount) {
+		synchronized (input) {
+			List<Entry<String, Integer>> sortedEntryList = MapUtil
+					.sortByValue(input);
+			input.clear();
+
+			for (int i = 0; i < Math.min(sortedEntryList.size(),
+					Acquisition.maxNumberOfPatterns); i++) {
+				String key = (String) sortedEntryList.get(i).getKey();
+				int value = (int) sortedEntryList.get(i).getValue();
+				double freq = (double) value / (double) totalCount;
+				if (freq > Acquisition.newPhraseMinSup)
+					input.put(key, value);
+			}
+		}
+	}
+
 	public int getStatCount() {
 		return stats.size();
 	}
 
-	public Map<String, Integer> getFrequentIrrelevantPatterns() {
-		return irrelevantPatterns;
+	public double getTotalAvgRelevance() {
+		int tweetcount = 0;
+		double avgrel = 0;
+
+		synchronized (this) {
+			for (WindowStatistics stat : stats) {
+				tweetcount += stat.getTotalTweetCount();
+				avgrel += stat.getAvgRelevance()
+						* (double) stat.getTotalTweetCount();
+			}
+		}
+		return avgrel / (double) tweetcount;
+
 	}
 
-	public Map<String, Integer> getFrequentRelevantPatterns() {
-		return relevantPatterns;
-	}
-
-	public Map<String, Integer> getFrequentIrrelevantHashtags() {
-		return irrelevantHashtags;
-	}
-
-	public Map<String, Integer> getFrequentRelevantHashtags() {
-		return relevantHashtags;
+	public boolean isFull() {
+		if (stats.size() >= Acquisition.maxNumberStats)
+			return true;
+		return false;
 	}
 
 	public void addRelevantPattern(String key, Integer value) {
@@ -148,18 +145,68 @@ public class TotalStatistics {
 	}
 
 	public int getRelevantTweetCount() {
-		return relevantTweetCount;
+		WindowStatistics lws = getLastWindowStatistics();
+		int lwsc = lws == null ? 0 : lws.getRelevantTweetCount();
+		return relevantTweetCount.get() + lwsc;
 	}
 
-	public void setRelevantTweetCount(int relevantTweetCount) {
-		this.relevantTweetCount = relevantTweetCount;
+	public void setRelevantTweetCount(int rtc) {
+		this.relevantTweetCount.set(rtc);
 	}
 
 	public int getIrrelevantTweetCount() {
-		return irrelevantTweetCount;
+		WindowStatistics lws = getLastWindowStatistics();
+		int lwsc = lws == null ? 0 : lws.getIrrelevantTweetCount();
+		return irrelevantTweetCount.get() + lwsc;
 	}
 
-	public void setIrrelevantTweetCount(int irrelevantTweetCount) {
-		this.irrelevantTweetCount = irrelevantTweetCount;
+	public void setIrrelevantTweetCount(int itc) {
+		this.irrelevantTweetCount.set(itc);
+	}
+
+	public int getDeltaTweetCount() {
+		WindowStatistics lws = getLastWindowStatistics();
+		int lwsc = lws == null ? 0 : lws.getDeltaTweetCount();
+		return deltaTweetCount.get() + lwsc;
+	}
+
+	public void setDeltaTweetCount(int dtc) {
+		this.deltaTweetCount.set(dtc);
+	}
+
+	public Integer getTotalTweetCount() {
+		WindowStatistics lws = getLastWindowStatistics();
+		int lwsc = lws == null ? 0 : lws.getTotalTweetCount();
+		return totalTweetCount.get() + lwsc;
+	}
+
+	public void setTotalTweetCount(int ttc) {
+		this.totalTweetCount.set(ttc);
+	}
+
+	public Map<String, Integer> getRelevantPatterns() {
+		return relevantPatterns;
+	}
+
+	public void setRelevantPatterns(
+			Map<String, Integer> frequentRelevantPatterns) {
+		this.relevantPatterns = frequentRelevantPatterns;
+	}
+
+	public Map<String, Integer> getIrrelevantPatterns() {
+		return irrelevantPatterns;
+	}
+
+	public void setIrrelevantPatterns(
+			Map<String, Integer> frequentIrrelevantPatterns) {
+		this.irrelevantPatterns = frequentIrrelevantPatterns;
+	}
+
+	public Map<String, Integer> getRelevantHashtags() {
+		return relevantHashtags;
+	}
+
+	public Map<String, Integer> getIrrelevantHashtags() {
+		return irrelevantHashtags;
 	}
 }

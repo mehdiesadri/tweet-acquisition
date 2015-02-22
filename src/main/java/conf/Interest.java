@@ -36,7 +36,7 @@ public class Interest {
 	private volatile long startTime;
 
 	@Transient
-	private volatile Map<String, Double> phraseTermFreq;
+	private volatile Map<String, Double> termFreq;
 	@Transient
 	private volatile Map<Long, UserStatistics> users;
 	@Transient
@@ -45,6 +45,8 @@ public class Interest {
 	private volatile TotalStatistics statistics;
 	@Transient
 	private volatile double tweetRelevanceThreshold;
+	@Transient
+	private volatile double tweetIrrelevanceThreshold;
 	@Transient
 	private double minPhraseTermFreq = 0;
 
@@ -58,6 +60,9 @@ public class Interest {
 		tweetRelevanceThreshold = Double
 				.valueOf(ConfigMgr
 						.readConfigurationParameter("AcquisitionTweetRelevanceThreshold"));
+		tweetIrrelevanceThreshold = Double
+				.valueOf(ConfigMgr
+						.readConfigurationParameter("AcquisitionTweetIrrelevanceThreshold"));
 
 		phrases = new ConcurrentHashMap<String, Phrase>();
 		users = new ConcurrentHashMap<Long, UserStatistics>();
@@ -82,17 +87,24 @@ public class Interest {
 		for (Phrase phrase : getPhrases())
 			weightSum += phrase.getWeight();
 
-		phraseTermFreq = new HashMap<String, Double>();
+		termFreq = new HashMap<String, Double>();
 		for (Phrase phrase : getPhrases()) {
+			for (Phrase p : getPhrases()) {
+				if (p != phrase && p.coverPhrase(phrase.getText())) {
+					phrase.setActive(false);
+					break;
+				}
+			}
+
 			for (String term : phrase.getTerms()) {
 				double d = phrase.getWeight() / weightSum;
-				if (!phraseTermFreq.containsKey(term)) {
-					phraseTermFreq.put(term, d);
+				if (!termFreq.containsKey(term)) {
+					termFreq.put(term, d);
 					if (d < minPhraseTermFreq || minPhraseTermFreq == 0)
 						minPhraseTermFreq = d;
 				} else {
-					double freq = phraseTermFreq.get(term) + d;
-					phraseTermFreq.put(term, freq);
+					double freq = termFreq.get(term) + d;
+					termFreq.put(term, freq);
 					if (freq < minPhraseTermFreq || minPhraseTermFreq == 0)
 						minPhraseTermFreq = freq;
 				}
@@ -101,10 +113,10 @@ public class Interest {
 	}
 
 	public double getPhraseTermFreq(String term) {
-		if (phraseTermFreq == null)
+		if (termFreq == null)
 			computeFrequencies();
-		if (phraseTermFreq.containsKey(term))
-			return phraseTermFreq.get(term);
+		if (termFreq.containsKey(term))
+			return termFreq.get(term);
 		return 0;
 	}
 
@@ -197,7 +209,7 @@ public class Interest {
 	}
 
 	public Map<String, Double> getPhraseTermFreq() {
-		return phraseTermFreq;
+		return termFreq;
 	}
 
 	public TotalStatistics getStatistics() {
@@ -207,15 +219,21 @@ public class Interest {
 	public long getOldestPhraseUpdateTime() {
 		long oldestPhraseUpdateTime = startTime;
 		for (Phrase phrase : getPhrases()) {
-			if (phrase.getLastUpdateTime() < oldestPhraseUpdateTime
+			if (phrase.isActive()
+					&& phrase.getLastUpdateTime() < oldestPhraseUpdateTime
 					|| oldestPhraseUpdateTime == startTime)
 				oldestPhraseUpdateTime = phrase.getLastUpdateTime();
 		}
+
 		return oldestPhraseUpdateTime;
 	}
 
 	public double getTweetRelevanceThreshold() {
 		return tweetRelevanceThreshold;
+	}
+
+	public double getTweetIrrelevanceThreshold() {
+		return tweetIrrelevanceThreshold;
 	}
 
 	public Map<Long, UserStatistics> getUsers() {

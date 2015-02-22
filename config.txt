@@ -18,22 +18,25 @@ MongoDBTweetCollection=tweet
 MongoDBUserCollection=user
 MongoDBResultCollection=result
 MongoDBReportCollection=report
-MongoDBQueryCollection=query
 MongoDBUserCollection=user
 MongoDBResultMetadataCollection=metadata
 MongoDBStoreUserInfo=true
 
 #AcquisitionModule
-AcquisitionTweetRelevanceThreshold=.5
+AcquisitionTweetRelevanceThreshold=.2
+AcquisitionTweetIrrelevanceThreshold=.05
+AcquisitionMinWindowLength=5
+AcquisitionMinNumberOfTweets=10
+AcquisitionStartWindowSize=2000
 AcquisitionPhraseLimit=400
 AcquisitionLocationLimit=250
 AcquisitionUserLimit=250
 AcquisitionEEFraction=.25
-AcquisitionStartWindowSize=1000
-AcquisitionHost=localhost
-AcquisitionPort=4400
-AcquisitionNewPhraseMinSup=.1
-AcquisitionNewPhraseMaxLength=4
+AcquisitionNewPhraseMinSup=.01
+AcquisitionNewPhraseMaxLength=3
+AcquisitionMinNewPhraseScore=.1
+AcquisitionPercentageOfNewPhrasesToAdd=.5
+AcquisitionMaxNumberStats=5
 
 #Simulation
 UseSimulator=false

@@ -9,7 +9,7 @@ import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import conf.ConfigMgr;
+import ta.Acquisition;
 import conf.Interest;
 import conf.Phrase;
 import conf.Query;
@@ -17,11 +17,6 @@ import conf.Query;
 public class QueryGenerator {
 	static final Logger logger = LogManager.getLogger(QueryGenerator.class
 			.getName());
-
-	private static double eefraction;
-	private static int phraseLimit;
-	private static int locationLimit;
-	private static int userLimit;
 
 	private static QueryGenerator instance = null;
 
@@ -32,39 +27,31 @@ public class QueryGenerator {
 		return instance;
 	}
 
-	public QueryGenerator() {
-		eefraction = Double.valueOf(ConfigMgr
-				.readConfigurationParameter("AcquisitionEEFraction"));
-		phraseLimit = Integer.valueOf(ConfigMgr
-				.readConfigurationParameter("AcquisitionPhraseLimit"));
-		locationLimit = Integer.valueOf(ConfigMgr
-				.readConfigurationParameter("AcquisitionLocationLimit"));
-		userLimit = Integer.valueOf(ConfigMgr
-				.readConfigurationParameter("AcquisitionUserLimit"));
-	}
-
 	public static Query generate(Interest interest) {
 		Query query = new Query();
 		List<Phrase> phrases = new ArrayList<Phrase>();
 
-		int exploreSize = (int) (eefraction * phraseLimit);
-		int exploitSize = phraseLimit - exploreSize;
+		int exploreSize = (int) (Acquisition.eefraction * Acquisition.phraseLimit);
+		int exploitSize = Acquisition.phraseLimit - exploreSize;
 
-		if (interest.getStatistics().getTotalTweetCount() == 0)
-			exploreSize = phraseLimit;
+		int interestTotalTweetCount = interest.getStatistics()
+				.getRelevantTweetCount()
+				+ interest.getStatistics().getIrrelevantTweetCount();
+		if (interestTotalTweetCount == 0)
+			exploreSize = Acquisition.phraseLimit;
 
 		for (Phrase phrase : interest.getPhrases())
 			phrases.add(phrase);
 
 		logger.info("Total Interest's Phrase Count: " + phrases.size());
 		int phrasesToExploitCount = 0;
-		if (interest.getStatistics().getTotalTweetCount() > 0) {
+		if (interestTotalTweetCount > 0) {
 			Collection<? extends Phrase> phrasesToExploit = selectPhrasesToExploit(
 					phrases, exploitSize);
 			for (Phrase phrase : phrasesToExploit) {
 				if (phrase.getStatistics().getStatCount() > 0
 						&& !query.getPhrases().containsKey(phrase.getText())) {
-					phrase.getStatistics().addStat();
+					phrase.getStatistics().addNewStat();
 					phrase.setLastUpdateTime(System.currentTimeMillis());
 					addPhraseToQuery(query, phrase);
 					phrases.remove(phrase);
@@ -80,7 +67,7 @@ public class QueryGenerator {
 		Collection<? extends Phrase> phrasesToExplore = selectPhrasesToExplore(
 				phrases, exploreSize);
 		for (Phrase phrase : phrasesToExplore) {
-			phrase.getStatistics().addStat();
+			phrase.getStatistics().addNewStat();
 			phrase.setLastUpdateTime(System.currentTimeMillis());
 			addPhraseToQuery(query, phrase);
 			phrasesToExploreCount++;

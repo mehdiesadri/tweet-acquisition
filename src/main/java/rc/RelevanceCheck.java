@@ -4,11 +4,14 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import ta.Acquisition;
 import ta.UserStatistics;
+import util.SetUtil;
 import conf.Interest;
 import conf.Phrase;
 import conf.Tweet;
@@ -85,31 +88,37 @@ public class RelevanceCheck {
 		double maxRel = 0;
 		int count = 0;
 
-		for (Phrase phrase : interest.getPhrases()) {
-			if (tweet.containsPhrase(phrase.getText()))
+		HashSet<String> tweetTermSet = tweet.getTerms();
+		Set<Set<String>> tweetPatterns = SetUtil.powerSet(tweetTermSet,
+				Acquisition.newPhraseMaxLength);
+
+		for (Set<String> tweetPattern : tweetPatterns) {
+			if (tweetPattern.size() <= 0)
 				continue;
 
-			Map<String, Integer> relevantPatterns = phrase.getStatistics()
-					.getFrequentRelevantPatterns();
-			for (String pattern : relevantPatterns.keySet()) {
-				String p = pattern.replaceAll(",", " ").trim();
-				boolean flag = false;
-				for (Phrase ip : interest.getPhrases()) {
-					if (ip.containPhrase(p)) {
-						flag = true;
-						break;
-					}
-				}
+			String patternStr = "";
+			String phraseStr = "";
+			for (String t : tweetPattern) {
+				patternStr += t + ",";
+				phraseStr += t + " ";
+			}
+			patternStr = patternStr.substring(0, patternStr.length() - 1)
+					.trim();
+			phraseStr = phraseStr.trim();
 
-				if (flag)
+			for (Phrase phrase : interest.getPhrases()) {
+				if (tweet.containsPhrase(phrase.getText()))
 					continue;
 
-				if (tweet.containsPhrase(p)) {
-					double prel = (double) relevantPatterns.get(pattern)
+				Map<String, Integer> relevantPatterns = phrase.getStatistics()
+						.getRelevantPatterns();
+				if (relevantPatterns.containsKey(patternStr)) {
+					double prel = (double) relevantPatterns.get(patternStr)
 							/ (double) phrase.getStatistics()
-									.getTotalRelevantTweetCount();
+									.getRelevantTweetCount();
 					count++;
-					// logger.info(phrase.getText() + "\t~\t" + pattern + "\t"
+					// logger.info(phrase.getText() + "\t~\t" + patternStr +
+					// "\t"
 					// + prel);
 					if (prel > maxRel || maxRel == 0)
 						maxRel = prel;
@@ -120,6 +129,7 @@ public class RelevanceCheck {
 						return 1;
 				}
 			}
+
 		}
 
 		rel = Math.abs(maxRel

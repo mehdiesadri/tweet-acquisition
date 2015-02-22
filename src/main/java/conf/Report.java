@@ -5,6 +5,7 @@ import org.mongodb.morphia.annotations.Embedded;
 import org.mongodb.morphia.annotations.Entity;
 import org.mongodb.morphia.annotations.Id;
 
+import ta.Acquisition;
 import ta.WindowStatistics;
 
 @Entity("report")
@@ -14,15 +15,21 @@ public class Report {
 	private String interestId;
 	private long startTime;
 	private long endTime;
-	private Integer totalTweetCount;
+	private long duration;
+
+	@Embedded
+	private Query query;
+
+	@Embedded
 	private WindowStatistics statistics;
 
-	public Report(ta.Window window) {
+	public Report(ta.Window window, Query q) {
 		startTime = window.getStartTime();
 		endTime = window.getEndTime();
-		interestId = window.getInterestId();
-		totalTweetCount = window.getTotalTweetCount();
 		statistics = window.getStatistics();
+		interestId = Acquisition.getInterest().getId();
+		setDuration(window.getLength());
+		query = q;
 	}
 
 	public long getStartTime() {
@@ -47,5 +54,21 @@ public class Report {
 
 	public void setInterestId(String interestId) {
 		this.interestId = interestId;
+	}
+
+	public long getDuration() {
+		return duration;
+	}
+
+	public void setDuration(long duration) {
+		this.duration = duration;
+	}
+
+	public Query getQuery() {
+		return query;
+	}
+
+	public void setQuery(Query query) {
+		this.query = query;
 	}
 }

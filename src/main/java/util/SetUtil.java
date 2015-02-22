@@ -12,9 +12,9 @@ import java.util.Set;
 import java.util.TreeSet;
 
 public class SetUtil {
-	public static List<Set<String>> getSubsets(List<String> superSet, int k) {
+	public static List<Set<String>> getSubsets(HashSet<String> terms, int k) {
 		List<Set<String>> res = new ArrayList<Set<String>>();
-		getSubsets(superSet, k, 0, new HashSet<String>(), res);
+		getSubsets(terms, k, 0, new HashSet<String>(), res);
 		return res;
 	}
 
@@ -102,21 +102,21 @@ public class SetUtil {
 		return entries;
 	}
 
-	private static void getSubsets(List<String> superSet, int k, int idx,
+	private static void getSubsets(HashSet<String> terms, int k, int idx,
 			Set<String> current, List<Set<String>> solution) {
 		if (current.size() == k) {
 			solution.add(new HashSet<String>(current));
 			return;
 		}
 
-		if (superSet == null || idx == superSet.size())
+		if (terms == null || idx == terms.size())
 			return;
 
-		String x = superSet.get(idx);
+		String x = (String) terms.toArray()[idx];
 		current.add(x);
-		getSubsets(superSet, k, idx + 1, current, solution);
+		getSubsets(terms, k, idx + 1, current, solution);
 		current.remove(x);
-		getSubsets(superSet, k, idx + 1, current, solution);
+		getSubsets(terms, k, idx + 1, current, solution);
 	}
 
 }

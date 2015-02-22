@@ -1,8 +1,8 @@
 package conf;
 
+import org.mongodb.morphia.annotations.Embedded;
 import org.mongodb.morphia.annotations.Entity;
 import org.mongodb.morphia.annotations.Id;
-import org.mongodb.morphia.annotations.Transient;
 
 import ta.UserStatistics;
 
@@ -10,13 +10,16 @@ import ta.UserStatistics;
 public class User {
 	@Id
 	private long id;
+
+	@Embedded
 	private twitter4j.User userInfo;
 
-	@Transient
+	@Embedded
 	private UserStatistics statistics;
 
-	public User(twitter4j.User u) {
+	public User(twitter4j.User u, UserStatistics s) {
 		userInfo = u;
+		statistics = s;
 		if (u != null)
 			id = getUserInfo().getId();
 		statistics = new UserStatistics(id);

@@ -2,38 +2,42 @@ package ta;
 
 import java.util.Collection;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import rc.RelevanceCheck;
 import stm.StorageManager;
 import conf.Interest;
 import conf.Phrase;
 import conf.Tweet;
 
-public class Window {
+public class Window implements Runnable {
 	static final Logger logger = LogManager.getLogger(Window.class.getName());
 
+	private static final int executerTimeOutHours = 5;
+	private static final int workerPoolSize = 5;
+	private static final int pollTimeout = 10;
+
 	private Thread t_cw;
-	private volatile BlockingQueue<Tweet> tweets;
+
+	private volatile ExecutorService executor;
 	private volatile WindowStatistics statistics;
+	private volatile BlockingQueue<Tweet> tweetBuffer;
 
 	private volatile long startTime;
 	private volatile long endTime;
 	private volatile boolean open;
 	private volatile boolean done;
 
-	private volatile Interest interest;
-	private volatile Integer totalTweetCount;
-
 	public Window() {
-		totalTweetCount = 0;
 		done = false;
-		interest = Acquisition.getInterest();
-		tweets = new LinkedBlockingQueue<Tweet>();
-		statistics = new WindowStatistics();
+		tweetBuffer = new LinkedBlockingQueue<Tweet>();
+		statistics = Acquisition.getInterest().getStatistics().addNewStat();
+		executor = Executors.newFixedThreadPool(workerPoolSize);
 		t_cw = new Thread(this);
 		t_cw.setName("t_cw");
 	}
@@ -50,19 +54,99 @@ public class Window {
 			endTime = System.currentTimeMillis();
 			notifyAll();
 		}
+		logger.info("Window Size (secs):	" + (double) getLength() / 1000);
+	}
+
+	public void finish() {
+		synchronized (this) {
+			done = true;
+			finalizeStatistics();
+			notifyAll();
+		}
+		logger.info("window has been finished.");
+	}
+
+	public void shutdown() {
+		synchronized (this) {
+			printReport();
+			t_cw.interrupt();
+			t_cw = null;
+			System.gc();
+		}
+		logger.info("window has been shutdown.");
+	}
+
+	public void addTweet(Tweet tweet) {
+		if (isOpen()
+				&& (statistics.getRelevantTweetCount() >= Acquisition
+						.getWindowSize() || !Acquisition.getInterest()
+						.getStatistics().isFull())
+				&& (Acquisition.isSimulating() || getLength() > Acquisition.minWindowLength)) {
+			close();
+		}
+
+		if (isOpen())
+			tweetBuffer.add(tweet);
+		else {
+			getStatistics().incrementDeltaTweetCount();
+			tweet.setRelevance(.5);
+			StorageManager.addTweet(tweet);
+		}
+	}
+
+	public void run() {
+		for (int i = 0; i < workerPoolSize; i++) {
+			WindowWorker worker = new WindowWorker(this, i);
+			executor.execute(worker);
+		}
+
+		executor.shutdown();
+		try {
+			if (!executor
+					.awaitTermination(executerTimeOutHours, TimeUnit.HOURS))
+				logger.info("Threads didn't finish in " + executerTimeOutHours
+						+ " hours!");
+		} catch (InterruptedException e) {
+			e.printStackTrace();
+		}
+
+		finish();
+	}
+
+	public Tweet pollTweet() {
+		try {
+			return tweetBuffer.poll(pollTimeout, TimeUnit.MILLISECONDS);
+		} catch (InterruptedException e) {
+			e.printStackTrace();
+		}
+
+		return null;
 	}
 
 	public boolean isOpen() {
 		return open;
 	}
 
-	public void addTweet(Tweet tweet) {
-		synchronized (totalTweetCount) {
-			totalTweetCount++;
-		}
+	public int getBufferSize() {
+		return tweetBuffer.size();
+	}
 
-		if (open)
-			tweets.add(tweet);
+	private void finalizeStatistics() {
+		Collection<Phrase> interestPhrases = Acquisition.getInterest()
+				.getPhrases();
+
+		Interest interest = Acquisition.getInterest();
+		getStatistics().finalize(interest.getStatistics(), getLength());
+
+		for (Phrase phrase : interestPhrases) {
+			TotalStatistics pstatistics = phrase.getStatistics();
+			if (pstatistics != null) {
+				WindowStatistics plastWindowStatistics = pstatistics
+						.getLastWindowStatistics();
+				if (plastWindowStatistics != null)
+					plastWindowStatistics.finalize(pstatistics, getLength());
+			}
+		}
 	}
 
 	public long getEndTime() {
@@ -81,111 +165,12 @@ public class Window {
 		return statistics;
 	}
 
-	public int getTotalTweetCount() {
-		synchronized (totalTweetCount) {
-			return totalTweetCount;
-		}
-	}
-
 	public boolean isDone() {
 		return done;
 	}
 
-	public String getInterestId() {
-		return interest.getId();
-	}
-
-	public void run() {
-		while (open || getBufferSize() > 0) {
-			Tweet tweet = null;
-
-			try {
-				tweet = tweets.take();
-			} catch (InterruptedException e) {
-				e.printStackTrace();
-			}
-
-			if (Acquisition.languageCheck
-					&& !Acquisition.languageClassifier
-							.satisfy(tweet.getTerms())) {
-				continue;
-			}
-
-			double rel = RelevanceCheck.getRelevance(tweet, interest);
-			tweet.setRelevance(rel);
-			// store(tweet);
-
-			updateStatistics(tweet);
-
-			synchronized (totalTweetCount) {
-				if (totalTweetCount >= Acquisition.getWindowSize()
-						&& isOpen()
-						&& (Acquisition.isSimulating() || getLength() > Acquisition.MinWindowLength)) {
-					close();
-					logger.info("Window Size (seconds):	"
-							+ (double) getLength() / 1000);
-				}
-			}
-		}
-
-		finalizeStatistics();
-		synchronized (this) {
-			done = true;
-			Acquisition.addTweetCount(totalTweetCount);
-			notifyAll();
-		}
-
-		printReport();
-		System.gc();
-	}
-
-	private void finalizeStatistics() {
-		Collection<Phrase> interestPhrases = Acquisition.getInterest()
-				.getPhrases();
-
-		statistics.finalize(interest.getStatistics(), getLength());
-
-		for (Phrase phrase : interestPhrases) {
-			TotalStatistics pstatistics = phrase.getStatistics();
-			if (pstatistics != null) {
-				WindowStatistics plastWindowStatistics = pstatistics
-						.getLastWindowStatistics();
-				if (plastWindowStatistics != null)
-					plastWindowStatistics.finalize(pstatistics, getLength());
-			}
-		}
-	}
-
-	private void updateStatistics(Tweet tweet) {
-		Collection<Phrase> interestPhrases = Acquisition.getInterest()
-				.getPhrases();
-		long userId = tweet.getUserID();
-
-		UserStatistics userStatistics = interest.getUserStatistics(userId);
-		if (userStatistics == null) {
-			interest.addUser(userId);
-			userStatistics = interest.getUserStatistics(userId);
-		}
-		userStatistics.addTweet(tweet);
-
-		for (Phrase phrase : interestPhrases) {
-			if (tweet.containsPhrase(phrase.getText()))
-				phrase.addTweet(tweet);
-		}
-
-		statistics.addTweet(tweet);
-	}
-
-	private void store(Tweet tweet) {
-		StorageManager.addTweet(tweet);
-		if (tweet.getStatus().getRetweetedStatus() != null) {
-			Tweet retweet = new Tweet(tweet.getStatus().getRetweetedStatus());
-			StorageManager.addTweet(retweet);
-		}
-	}
-
 	private void printReport() {
-		logger.info("Window Tweet Count: " + totalTweetCount);
+		logger.info("Window Tweet Count: " + statistics.getTotalTweetCount());
 		logger.info("Window English Tweet Count: "
 				+ statistics.getTotalTweetCount());
 		logger.info("Window Total English Relevant Tweet Count: "
@@ -198,10 +183,16 @@ public class Window {
 				+ statistics.getRelevantHashtags().size());
 		logger.info("Window Irrelevant Hashtag Count: "
 				+ statistics.getIrrelevantHashtags().size());
-		logger.info("Total User Count: " + interest.getUsers().size());
-	}
-
-	public int getBufferSize() {
-		return tweets.size();
+		logger.info("Total User Count: "
+				+ Acquisition.getInterest().getUsers().size());
+		logger.info("Total tweet count: "
+				+ Acquisition.getInterest().getStatistics()
+						.getTotalTweetCount());
+		logger.info("Total relevant tweet count: "
+				+ Acquisition.getInterest().getStatistics()
+						.getRelevantTweetCount());
+		logger.info("Total delta tweet count: "
+				+ Acquisition.getInterest().getStatistics()
+						.getDeltaTweetCount());
 	}
 }

@@ -2,11 +2,16 @@ package stm;
 
 import java.net.UnknownHostException;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 
 import org.mongodb.morphia.Datastore;
 import org.mongodb.morphia.Morphia;
+
+import ta.Acquisition;
+import ta.UserStatistics;
+import ta.WindowStatistics;
 
 import com.mongodb.Mongo;
 import com.mongodb.MongoClient;
@@ -15,7 +20,6 @@ import conf.ConfigMgr;
 import conf.Interest;
 import conf.Location;
 import conf.Phrase;
-import conf.Query;
 import conf.Report;
 import conf.Tweet;
 import conf.User;
@@ -52,8 +56,10 @@ public class StorageManager implements Runnable {
 			e.printStackTrace();
 			System.exit(-1);
 		}
-		morphia.map(Query.class).map(Tweet.class).map(User.class)
-				.map(Interest.class).map(Report.class);
+
+		morphia.map(Tweet.class).map(User.class).map(Interest.class)
+				.map(Report.class);
+
 		datastore = morphia.createDatastore(m, database);
 		tweets = new LinkedBlockingQueue<Tweet>();
 
@@ -132,10 +138,6 @@ public class StorageManager implements Runnable {
 		datastore.delete(Interest.class, interestId);
 	}
 
-	public static void storeQuery(Query query) {
-		datastore.save(query);
-	}
-
 	public static void storeUser(User user) {
 		datastore.save(user);
 	}
@@ -159,28 +161,22 @@ public class StorageManager implements Runnable {
 		return interests;
 	}
 
-	public static List<Query> getQueries() {
-		List<Query> queries = datastore.find(Query.class).asList();
-		return queries;
-	}
-
 	public void main(String[] args) throws Exception {
-		Query q = new Query();
 		Phrase phrase = new Phrase();
 		phrase.setText("iran");
-		q.addPhrase(phrase);
-		q.addLocation(new Location("meh", "tehran"));
-		storeQuery(q);
 
 		Tweet t = new Tweet(null);
 		storeTweet(t);
 	}
 
-	public static void removeAll() {
-		// datastore.delete(datastore.createQuery(User.class));
-		datastore.delete(datastore.createQuery(Query.class));
+	public static void clearReports() {
 		datastore.delete(datastore.createQuery(Report.class));
-		// datastore.delete(datastore.createQuery(Tweet.class));
+	}
+
+	public static void clearAll() {
+		datastore.delete(datastore.createQuery(Tweet.class));
+		datastore.delete(datastore.createQuery(User.class));
+		datastore.delete(datastore.createQuery(Report.class));
 	}
 
 	public static void close() {
@@ -190,11 +186,14 @@ public class StorageManager implements Runnable {
 	}
 
 	public static void storeTweet(Tweet tweet) {
+		Map<Long, UserStatistics> users = Acquisition.getInterest().getUsers();
+		User user = new User(tweet.getStatus().getUser(), users.get(tweet
+				.getUserID()));
+
 		datastore.save(tweet);
 
-		if (storeUserInfo) {
-			// storeUser(user);
-		}
+		if (storeUserInfo)
+			storeUser(user);
 	}
 
 	public synchronized static int getQueueSize() {

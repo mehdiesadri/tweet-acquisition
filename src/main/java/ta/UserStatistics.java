@@ -1,14 +1,21 @@
 package ta;
 
+import org.mongodb.morphia.annotations.Embedded;
+import org.mongodb.morphia.annotations.Transient;
+
 import twitter4j.User;
 import conf.Interest;
 import conf.Tweet;
 
+@Embedded("statistics")
 public class UserStatistics {
+	@Transient
 	private long userId;
+
 	private String screenName;
 	private int relevantTweetCount;
 	private int irrelevantTweetCount;
+
 	private double avgRelevance;
 	private double maxRelevance;
 	private double minRelevance;

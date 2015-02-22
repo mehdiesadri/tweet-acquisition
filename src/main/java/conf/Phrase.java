@@ -15,8 +15,8 @@ import ta.WindowStatistics;
 public class Phrase {
 	private String text;
 	private double weight;
-
 	private boolean initial;
+	private boolean active;
 
 	@Transient
 	private long lastUpdateTime;
@@ -30,13 +30,13 @@ public class Phrase {
 	public Phrase() {
 		lastUpdateTime = 0;
 		statistics = new TotalStatistics();
+		active = true;
 	}
 
 	public Phrase(String txt, double wgt) {
+		this();
 		text = normalizePhraseText(txt);
 		weight = wgt;
-		lastUpdateTime = 0;
-		statistics = new TotalStatistics();
 	}
 
 	public boolean coverPhrase(String p) {
@@ -121,7 +121,8 @@ public class Phrase {
 	public double computeReward() {
 		double reward = 0;
 		reward += getStatistics().getTotalAvgRelevance()
-				* getStatistics().getTotalTweetCount();
+				* (getStatistics().getIrrelevantTweetCount() + getStatistics()
+						.getRelevantTweetCount());
 		WindowStatistics lastWindowStatistics = getStatistics()
 				.getLastWindowStatistics();
 		if (lastWindowStatistics == null)
@@ -178,5 +179,13 @@ public class Phrase {
 
 	public boolean hasTerm(String term) {
 		return terms.contains(term);
+	}
+
+	public boolean isActive() {
+		return active;
+	}
+
+	public void setActive(boolean active) {
+		this.active = active;
 	}
 }

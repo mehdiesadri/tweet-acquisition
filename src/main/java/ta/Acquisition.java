@@ -5,7 +5,6 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.Socket;
-import java.util.List;
 
 import lang.EnglishClassifier;
 import lang.LanguageClassifier;
@@ -29,15 +28,28 @@ public class Acquisition implements Runnable {
 	final static Logger logger = LogManager.getLogger(Acquisition.class
 			.getName());
 
-	private static final String termCommonnessHost = "128.195.53.246";
-	private static final int termCommonnessPort = 9090;
-	public static final long MinWindowLength = 5 * 60 * 1000;
+	public static final int maxNumberOfPatterns = 1000000;
+	public static double percentageOfNewPhrasesToAdd;
+	public static int minNumberOfTweets;
+	public static double newPhraseMinSup;
+	public static Integer newPhraseMaxLength;
+	public static long minWindowLength;
+	public static double minNewPhraseScore;
+	public static Integer phraseLimit;
+	public static double eefraction;
+	public static int locationLimit;
+	public static int userLimit;
+	public static int maxNumberStats;
 
-	private volatile static Acquisition instance = null;
 	public static boolean running;
 	public volatile static Boolean languageCheck;
 	public volatile static LanguageClassifier languageClassifier;
 
+	private static TwitterSimulator simulator;
+	private static final String termCommonnessHost = "128.195.53.246";
+	private static final int termCommonnessPort = 9090;
+
+	private volatile static Acquisition instance = null;
 	private volatile static long lastInterestUpdateTime;
 	private volatile static TwitterListener listener;
 	private volatile static Interest interest;
@@ -45,8 +57,6 @@ public class Acquisition implements Runnable {
 	private volatile static Window window;
 	private volatile static Query query;
 	private static boolean simulating;
-	private static TwitterSimulator simulator;
-	private volatile static int tweetCount;
 
 	private static Thread t_ac;
 	private static Thread t_tl;
@@ -56,27 +66,45 @@ public class Acquisition implements Runnable {
 		t_ac.setName("t_ac");
 
 		languageCheckInitialization();
+
+		minWindowLength = Integer.valueOf(ConfigMgr
+				.readConfigurationParameter("AcquisitionMinWindowLength")) * 60 * 1000;
 		windowSize = Integer.valueOf(ConfigMgr
 				.readConfigurationParameter("AcquisitionStartWindowSize"));
 		simulating = Boolean.valueOf(ConfigMgr
 				.readConfigurationParameter("UseSimulator"));
+		minNumberOfTweets = Integer.valueOf(ConfigMgr
+				.readConfigurationParameter("AcquisitionMinNumberOfTweets"));
+		minNewPhraseScore = Double.valueOf(ConfigMgr
+				.readConfigurationParameter("AcquisitionMinNewPhraseScore"));
+		newPhraseMinSup = Double.valueOf(ConfigMgr
+				.readConfigurationParameter("AcquisitionNewPhraseMinSup"));
+		newPhraseMaxLength = Integer.valueOf(ConfigMgr
+				.readConfigurationParameter("AcquisitionNewPhraseMaxLength"));
+		percentageOfNewPhrasesToAdd = Double
+				.valueOf(ConfigMgr
+						.readConfigurationParameter("AcquisitionPercentageOfNewPhrasesToAdd"));
+		eefraction = Double.valueOf(ConfigMgr
+				.readConfigurationParameter("AcquisitionEEFraction"));
+
+		phraseLimit = Integer.valueOf(ConfigMgr
+				.readConfigurationParameter("AcquisitionPhraseLimit"));
+		locationLimit = Integer.valueOf(ConfigMgr
+				.readConfigurationParameter("AcquisitionLocationLimit"));
+		userLimit = Integer.valueOf(ConfigMgr
+				.readConfigurationParameter("AcquisitionUserLimit"));
+
+		maxNumberStats = Integer.valueOf(ConfigMgr
+				.readConfigurationParameter("AcquisitionMaxNumberStats"));
 
 		if (isSimulating())
 			simulator = new TwitterSimulator();
 
 		running = false;
-		tweetCount = 0;
 
 		TextNormalizer.getInstance();
 		QueryGenerator.getInstance();
-		StorageManager.getInstance();
-		StorageManager.removeAll();
-
-		List<Interest> interests = StorageManager.getInterests();
-		if (interests != null && interests.size() > 0)
-			interest = interests.get(0);
-
-		interest.computeFrequencies();
+		InterestUpdater.getInstance();
 
 		logger.info("tweet acquisition has been initiated.");
 	}
@@ -96,9 +124,10 @@ public class Acquisition implements Runnable {
 
 		while (running) {
 			try {
-				query = QueryGenerator.generate(interest);
-				StorageManager.storeQuery(query);
-				startNewWindow();
+				query = QueryGenerator.generate(getInterest());
+
+				window = new Window();
+				window.open();
 
 				if (isSimulating()) {
 					simulator.start();
@@ -116,13 +145,18 @@ public class Acquisition implements Runnable {
 					while (!window.isDone())
 						window.wait();
 					logger.info("window processing has been done.");
+
+					if (getInterest().getOldestPhraseUpdateTime() >= lastInterestUpdateTime
+							|| interest.getStatistics().isFull())
+						InterestUpdater.update();
+					else
+						InterestUpdater.quickUpdate();
+
+					window.shutdown();
 				}
 
-				Report report = new Report(getCurrentWindow());
+				Report report = new Report(window, query);
 				StorageManager.storeReport(report);
-
-				if (interest.getOldestPhraseUpdateTime() >= lastInterestUpdateTime)
-					InterestUpdater.update(interest);
 
 				stopListener();
 			} catch (InterruptedException e) {
@@ -160,11 +194,6 @@ public class Acquisition implements Runnable {
 		t_tl = new Thread(listener);
 		t_tl.setName("t_tl");
 		t_tl.start();
-	}
-
-	public synchronized static void startNewWindow() {
-		window = new Window();
-		window.open();
 	}
 
 	public synchronized static void OnStatus(Tweet tweet) {
@@ -208,14 +237,6 @@ public class Acquisition implements Runnable {
 		Acquisition.windowSize = windowSize;
 	}
 
-	public static int getTotalTweetCount() {
-		return tweetCount + (window.isDone() ? 0 : window.getTotalTweetCount());
-	}
-
-	public static void addTweetCount(int c) {
-		tweetCount += c;
-	}
-
 	public static double getTermCommonness(String term) {
 		try {
 			Socket client = new Socket(termCommonnessHost, termCommonnessPort);
@@ -237,5 +258,10 @@ public class Acquisition implements Runnable {
 
 	public static boolean isSimulating() {
 		return simulating;
+	}
+
+	public static void setInterest(Interest interest) {
+		Acquisition.interest = interest;
+		Acquisition.interest.computeFrequencies();
 	}
 }

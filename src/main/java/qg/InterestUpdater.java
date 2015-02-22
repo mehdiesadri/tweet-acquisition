@@ -1,31 +1,28 @@
 package qg;
 
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import ta.Acquisition;
+import util.MapUtil;
+import util.SetUtil;
 import conf.Interest;
 import conf.Phrase;
+import conf.Query;
 
 public class InterestUpdater {
-	private static final double percentageOfNewPhrasesToAdd = .3;
-	private static final double minNewPhraseScore = .1;
-
 	static final Logger logger = LogManager.getLogger(InterestUpdater.class
 			.getName());
 
 	private static InterestUpdater instance = null;
-	private static double newPhraseMinSup;
 
 	public static synchronized InterestUpdater getInstance() {
 		if (instance == null)
@@ -34,29 +31,64 @@ public class InterestUpdater {
 		return instance;
 	}
 
-	public static void update(Interest interest) {
+	public static void quickUpdate() {
 		if (Acquisition.getCurrentWindow().getStatistics()
 				.getRelevantTweetCount() == 0)
 			return;
 
-		Collection<Phrase> phrases = Acquisition.getQuery().getPhrases()
-				.values();
+		Interest interest = Acquisition.getInterest();
+		Query query = Acquisition.getQuery();
+		Collection<Phrase> phrases = query.getPhrases().values();
+
 		synchronized (phrases) {
 			for (Phrase phrase : phrases) {
+				int windowTweetCount = interest.getStatistics()
+						.getLastWindowStatistics().getTotalTweetCount();
 				int totalIrrelevantTweetCount = phrase.getStatistics()
-						.getTotalIrrelevantTweetCount();
+						.getLastWindowStatistics().getIrrelevantTweetCount();
 				int totalRelevantTweetCount = phrase.getStatistics()
-						.getTotalRelevantTweetCount();
+						.getLastWindowStatistics().getRelevantTweetCount();
 
-				if (phrase.getStatistics().getStatCount() > 5) {
+				if (((double) totalIrrelevantTweetCount > ((double) windowTweetCount * .01) && totalRelevantTweetCount == 0)
+						|| ((double) totalRelevantTweetCount < ((double) totalIrrelevantTweetCount * .001))) {
+					interest.removePhrase(phrase);
+					logger.info("quickly removed irrelevant phrase: "
+							+ phrase.getText());
+				}
+			}
+		}
+
+		interest.computeFrequencies();
+	}
+
+	public static void update() {
+		if (Acquisition.getCurrentWindow().getStatistics()
+				.getRelevantTweetCount() == 0)
+			return;
+
+		Interest interest = Acquisition.getInterest();
+
+		if (interest.getStatistics().isFull()) {
+			Collection<Phrase> phrases = Acquisition.getQuery().getPhrases()
+					.values();
+			synchronized (phrases) {
+				for (Phrase phrase : phrases) {
+					int totalIrrelevantTweetCount = phrase.getStatistics()
+							.getIrrelevantTweetCount();
+					int totalRelevantTweetCount = phrase.getStatistics()
+							.getRelevantTweetCount();
+
 					if (totalIrrelevantTweetCount == 0
 							&& totalRelevantTweetCount > 0
 							&& phrase.getTerms().size() > 1) {
 						Phrase newPhrase = generalizePhrase(interest, phrase);
-						logger.info("generalized phrase: " + phrase.getText()
-								+ " to " + newPhrase.getText());
-						interest.removePhrase(phrase);
-						interest.addPhrase(newPhrase);
+						if (newPhrase != phrase) {
+							logger.info("generalized phrase: "
+									+ phrase.getText() + " to "
+									+ newPhrase.getText());
+							interest.removePhrase(phrase);
+							interest.addPhrase(newPhrase);
+						}
 					} else if (totalIrrelevantTweetCount > 0
 							&& totalRelevantTweetCount == 0) {
 						interest.removePhrase(phrase);
@@ -69,66 +101,45 @@ public class InterestUpdater {
 								+ phrase.getText());
 					} else {
 						Phrase newPhrase = specializePhrase(interest, phrase);
-						logger.info("specialize phrase: " + phrase.getText()
-								+ " to " + newPhrase.getText());
-						interest.removePhrase(phrase);
-						interest.addPhrase(newPhrase);
+						if (newPhrase != phrase) {
+							logger.info("specialize phrase: "
+									+ phrase.getText() + " to "
+									+ newPhrase.getText());
+							interest.removePhrase(phrase);
+							interest.addPhrase(newPhrase);
+						}
+
 					}
 				}
 			}
-
-			addNewPhrases(interest);
 		}
 
+		addNewPhrases(interest);
 		interest.computeFrequencies();
 	}
 
 	private static void addNewPhrases(Interest interest) {
+		List<Entry<Phrase, Double>> newPhrasesEntrySet;
 		Map<Phrase, Double> newPhrases = generatePotentialNewPhrases(interest);
 		Map<Phrase, Double> newHashtagPhrases = generatePotentialNewHashtagPhrases();
 
-		for (Phrase p : newHashtagPhrases.keySet())
-			newPhrases.put(p, newHashtagPhrases.get(p));
+		newPhrases.putAll(newHashtagPhrases);
+		newPhrasesEntrySet = MapUtil.sortByValue(newPhrases);
 
-		List<Entry<Phrase, Double>> newPhrasesEntrySet = new ArrayList<Map.Entry<Phrase, Double>>(
-				newPhrases.entrySet());
-		Collections.sort(newPhrasesEntrySet,
-				new Comparator<Entry<Phrase, Double>>() {
-					public int compare(Entry<Phrase, Double> arg0,
-							Entry<Phrase, Double> arg1) {
-						return arg1.getValue().compareTo(arg0.getValue());
-					}
-				});
+		int count = 0;
+		for (Entry<Phrase, Double> p : newPhrasesEntrySet) {
+			if (interest.coverPhrase(p.getKey().getText())
+					|| interest.phraseCovers(p.getKey()))
+				continue;
 
-		logger.info("potential new phrases: " + newPhrasesEntrySet);
+			if (Acquisition.phraseLimit < interest.getPhrases().size()
+					&& count > (int) (Acquisition.percentageOfNewPhrasesToAdd * Acquisition.phraseLimit))
+				break;
 
-		Integer index = 0;
-		synchronized (index) {
-			if (newPhrasesEntrySet.size() > 0) {
-				for (int i = 0; i < Math.max(1,
-						(int) (percentageOfNewPhrasesToAdd * newPhrasesEntrySet
-								.size())); i++) {
-
-					if (index >= newPhrasesEntrySet.size())
-						break;
-
-					Entry<Phrase, Double> p = newPhrasesEntrySet.get(index);
-					while (interest.coverPhrase(p.getKey().getText())
-							|| interest.phraseCovers(p.getKey())) {
-						index++;
-						if (index < newPhrasesEntrySet.size())
-							p = newPhrasesEntrySet.get(index);
-						else
-							break;
-					}
-
-					if (index < newPhrasesEntrySet.size()) {
-						interest.addPhrase(p.getKey());
-						logger.info("added phrase: " + p.getKey().getText()
-								+ " score: " + p.getValue());
-					}
-				}
-			}
+			interest.addPhrase(p.getKey());
+			count++;
+			logger.info("added phrase: " + p.getKey().getText() + " score: "
+					+ p.getValue());
 		}
 	}
 
@@ -137,56 +148,60 @@ public class InterestUpdater {
 		Map<Phrase, Double> potentialNewPhrases = new HashMap<Phrase, Double>();
 
 		Map<String, Integer> frequentRelevantPatterns = Acquisition
-				.getInterest().getStatistics().getFrequentRelevantPatterns();
+				.getInterest().getStatistics().getRelevantPatterns();
 		Map<String, Integer> frequentIrrelevantPatterns = Acquisition
-				.getInterest().getStatistics().getFrequentIrrelevantPatterns();
+				.getInterest().getStatistics().getIrrelevantPatterns();
 		Map<String, Integer> frequentRelevantHashtags = Acquisition
-				.getInterest().getStatistics().getFrequentRelevantHashtags();
-		final Map<String, Integer> frequentIrrelevantHashtags = Acquisition
-				.getInterest().getStatistics().getFrequentIrrelevantHashtags();
+				.getInterest().getStatistics().getRelevantHashtags();
+		Map<String, Integer> frequentIrrelevantHashtags = Acquisition
+				.getInterest().getStatistics().getIrrelevantHashtags();
 
 		for (String fpattern : frequentRelevantPatterns.keySet()) {
-			double freq = (double) frequentRelevantPatterns.get(fpattern)
+			double freq = (double) (frequentRelevantPatterns.get(fpattern))
 					/ (double) Acquisition.getInterest().getStatistics()
-							.getTotalRelevantTweetCount();
+							.getRelevantTweetCount();
+			double irfreq = (double) (frequentIrrelevantPatterns
+					.containsKey(fpattern) ? frequentIrrelevantPatterns
+					.get(fpattern) : 0)
+					/ (double) Acquisition.getInterest().getStatistics()
+							.getRelevantTweetCount();
 
-			if (freq > newPhraseMinSup) {
-				if (frequentIrrelevantPatterns.containsKey(fpattern)) {
-					continue;
+			freq = freq - irfreq;
+			if (freq < Acquisition.newPhraseMinSup)
+				continue;
+
+			Phrase newPhrase = new Phrase();
+			newPhrase.setText(fpattern.replace(",", " ").trim());
+			newPhrase.setInitial(false);
+			double score = 0;
+
+			for (String term : newPhrase.getTerms()) {
+				double interestTermFreq = interest.getPhraseTermFreq(term);
+				double termSpecificity = 1 - Acquisition
+						.getTermCommonness(term);
+
+				if (frequentRelevantHashtags.containsKey(term)) {
+					double hashtagFreq = (double) (frequentRelevantHashtags
+							.get(term) - (frequentIrrelevantHashtags
+							.containsKey(term) ? frequentIrrelevantHashtags
+							.get(term) : 0))
+							/ (double) interest.getStatistics()
+									.getRelevantTweetCount();
+					// logger.info("@@ " + term + " " + hashtagFreq + " "
+					// + termSpecificity);
+					if (hashtagFreq > termSpecificity)
+						termSpecificity = hashtagFreq;
 				}
 
-				Phrase newPhrase = new Phrase();
-				newPhrase.setText(fpattern.replace(",", " "));
-				newPhrase.setInitial(false);
-				double score = 0;
-
-				for (String term : newPhrase.getTerms()) {
-					double interestTermFreq = interest.getPhraseTermFreq(term);
-					double termSpecificity = Acquisition
-							.getTermCommonness(term);
-					if (frequentRelevantHashtags.containsKey(term)) {
-						double hashtagFreq = (double) (frequentRelevantHashtags
-								.get(term) - (frequentIrrelevantHashtags
-								.containsKey(term) ? frequentIrrelevantHashtags
-								.get(term) : 0))
-								/ (double) interest.getStatistics()
-										.getTotalRelevantTweetCount();
-						// logger.info("@@ " + term + " " + hashtagFreq + " "
-						// + termSpecificity);
-						if (hashtagFreq > termSpecificity)
-							termSpecificity = hashtagFreq;
-					}
-
-					double termRelevanceToInterest = interestTermFreq == 0 ? interest
-							.getMinPhraseTermFreq() : interestTermFreq;
-					score += termSpecificity * termRelevanceToInterest;
-				}
-
-				score = score / (double) newPhrase.getTerms().size();
-				newPhrase.setWeight(score);
-				if (score > minNewPhraseScore)
-					potentialNewPhrases.put(newPhrase, score);
+				double termRelevanceToInterest = interestTermFreq == 0 ? interest
+						.getMinPhraseTermFreq() : interestTermFreq;
+				score += termSpecificity * termRelevanceToInterest;
 			}
+
+			score = score / (double) newPhrase.getTerms().size();
+			newPhrase.setWeight(score);
+			if (score > Acquisition.minNewPhraseScore)
+				potentialNewPhrases.put(newPhrase, score);
 		}
 
 		return potentialNewPhrases;
@@ -196,27 +211,9 @@ public class InterestUpdater {
 		Map<Phrase, Double> potentialNewHashtagPhrases = new HashMap<Phrase, Double>();
 
 		Map<String, Integer> frequentRelevantHashtags = Acquisition
-				.getInterest().getStatistics().getFrequentRelevantHashtags();
+				.getInterest().getStatistics().getRelevantHashtags();
 		final Map<String, Integer> frequentIrrelevantHashtags = Acquisition
-				.getInterest().getStatistics().getFrequentIrrelevantHashtags();
-
-		List<Entry<String, Integer>> newPhrasesHashtagsEntrySet = new ArrayList<Map.Entry<String, Integer>>(
-				frequentRelevantHashtags.entrySet());
-		Collections.sort(newPhrasesHashtagsEntrySet,
-				new Comparator<Entry<String, Integer>>() {
-					public int compare(Entry<String, Integer> arg0,
-							Entry<String, Integer> arg1) {
-						Integer value0 = arg0.getValue()
-								- (frequentIrrelevantHashtags.containsKey(arg0
-										.getKey()) ? frequentIrrelevantHashtags
-										.get(arg0.getKey()) : 0);
-						Integer value1 = arg1.getValue()
-								- (frequentIrrelevantHashtags.containsKey(arg1
-										.getKey()) ? frequentIrrelevantHashtags
-										.get(arg1.getKey()) : 0);
-						return value1.compareTo(value0);
-					}
-				});
+				.getInterest().getStatistics().getIrrelevantHashtags();
 
 		for (String ht : frequentRelevantHashtags.keySet()) {
 			double score = frequentRelevantHashtags.get(ht)
@@ -224,7 +221,7 @@ public class InterestUpdater {
 							.get(ht) : 0);
 			score = score
 					/ (double) (Acquisition.getInterest().getStatistics()
-							.getTotalRelevantTweetCount());
+							.getRelevantTweetCount());
 
 			double termSpecificity = 1 - Acquisition.getTermCommonness(ht);
 			score = score * .75 + .25
@@ -240,12 +237,42 @@ public class InterestUpdater {
 	}
 
 	private static Phrase generalizePhrase(Interest interest, Phrase phrase) {
-		Phrase np = new Phrase();
+		Map<String, Integer> relevantPatterns = Acquisition.getInterest()
+				.getStatistics().getRelevantPatterns();
+		Phrase np = null;
 		String npt = "";
 		double mintf = 0;
 		double minitf = 0;
 		String term_mintf = "";
+		double maxFreq = 0;
+
 		HashSet<String> terms = phrase.getTerms();
+		List<Set<String>> patterns = SetUtil
+				.getSubsets(terms, terms.size() - 1);
+
+		for (Set<String> p : patterns) {
+			String pattern = "";
+			for (String t : p)
+				pattern += t + ",";
+			pattern = pattern.substring(0, pattern.length() - 1).trim();
+			if (relevantPatterns.containsKey(pattern)) {
+				double freq = (double) relevantPatterns.get(pattern)
+						/ (double) Acquisition.getInterest().getStatistics()
+								.getRelevantTweetCount();
+				if (freq > Acquisition.newPhraseMinSup
+						&& (freq > maxFreq || maxFreq == 0)) {
+					maxFreq = freq;
+					np = new Phrase();
+					String newPhraseStr = pattern.replace(",", " ").trim();
+					np.setText(newPhraseStr);
+					np.setWeight(freq);
+					np.setInitial(false);
+				}
+			}
+		}
+
+		if (np != null)
+			return np;
 
 		for (String term : terms) {
 			double phraseTermFreq = interest.getPhraseTermFreq(term);
@@ -263,38 +290,46 @@ public class InterestUpdater {
 				npt += term + " ";
 		}
 
-		np.setText(npt);
-
-		if (minitf > .2)
+		if (minitf > .2) {
+			np = new Phrase();
+			np.setText(npt);
+			np.setInitial(false);
+			np.setWeight(phrase.getWeight());
 			return np;
-		else
-			return phrase;
+		}
+		return phrase;
 	}
 
 	private static Phrase specializePhrase(Interest interest, Phrase phrase) {
+		Map<String, Integer> relevantPatterns = Acquisition.getInterest()
+				.getStatistics().getRelevantPatterns();
 		Phrase newPhrase = null;
-		Map<String, Integer> frequentRelevantPatterns = Acquisition
-				.getCurrentWindow().getStatistics().getRelevantPatterns();
 
 		double maxFreq = 0;
-		for (String fpattern : frequentRelevantPatterns.keySet()) {
-			double freq = (double) frequentRelevantPatterns.get(fpattern)
-					/ (double) Acquisition.getCurrentWindow().getStatistics()
+		for (String fpattern : relevantPatterns.keySet()) {
+			double freq = (double) relevantPatterns.get(fpattern)
+					/ (double) Acquisition.getInterest().getStatistics()
 							.getRelevantTweetCount();
-			if (freq > newPhraseMinSup && (freq > maxFreq || maxFreq == 0)) {
-				newPhrase = new Phrase();
-				newPhrase.setText(fpattern.replace(",", " "));
-				newPhrase.setWeight(freq);
-				newPhrase.setInitial(false);
-				if (phrase.coverPhrase(newPhrase.getText())) {
-					maxFreq = freq;
-				}
+
+			newPhrase = new Phrase();
+			String newPhraseStr = fpattern.replace(",", " ").trim();
+			newPhrase.setText(newPhraseStr);
+			newPhrase.setWeight(freq);
+			newPhrase.setInitial(false);
+
+			if (freq > Acquisition.newPhraseMinSup
+					&& (freq > maxFreq || maxFreq == 0)
+					&& phrase.coverPhrase(newPhrase.getText())) {
+				maxFreq = freq;
 			}
 		}
 
+		if (maxFreq == 0)
+			newPhrase = null;
+
 		if (newPhrase == null) {
 			for (Phrase p : interest.getPhrases()) {
-				if (phrase.coverPhrase(p.getText()))
+				if (phrase.coverPhrase(p.getText()) && p != phrase)
 					newPhrase = p;
 			}
 

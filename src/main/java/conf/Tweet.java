@@ -43,7 +43,7 @@ public class Tweet {
 		String[] pterms = p.split(" ");
 
 		for (String pt : pterms) {
-			if (!terms.contains(pt))
+			if (!getTerms().contains(pt))
 				return false;
 		}
 
@@ -54,9 +54,10 @@ public class Tweet {
 		if (terms == null) {
 			terms = new HashSet<String>();
 			String text = getStatus().getText();
+
 			for (URLEntity url : getStatus().getURLEntities()) {
 				String urltext = url.getExpandedURL().replace("http", "")
-						.replace("www", "");
+						.replace("https", "").replace("www", "");
 				String[] urlterms = urltext.split("[^A-Za-z]");
 				for (String ut : urlterms)
 					if (ut.length() > 3)
@@ -68,6 +69,7 @@ public class Tweet {
 							getStatus().getRetweetedStatus().getText()))
 				text += " " + getStatus().getRetweetedStatus().getText();
 
+			text = text.toLowerCase();
 			terms.addAll(TextNormalizer.normalize(text));
 		}
 
