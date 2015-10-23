@@ -2,7 +2,6 @@ package stm;
 
 import java.net.UnknownHostException;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 
@@ -11,14 +10,12 @@ import org.mongodb.morphia.Morphia;
 
 import ta.Acquisition;
 import ta.UserStatistics;
-import ta.WindowStatistics;
 
 import com.mongodb.Mongo;
 import com.mongodb.MongoClient;
 
 import conf.ConfigMgr;
 import conf.Interest;
-import conf.Location;
 import conf.Phrase;
 import conf.Report;
 import conf.Tweet;
@@ -116,14 +113,14 @@ public class StorageManager implements Runnable {
 	}
 
 	public synchronized static org.mongodb.morphia.query.Query<Tweet> getSimulationQuery() {
-		org.mongodb.morphia.query.Query<Tweet> query = null;
 		if (simulationdatastore != null) {
 			org.mongodb.morphia.query.Query<Tweet> q = simulationdatastore
-					.createQuery(Tweet.class);
-			query = q.order("-timestamp");
+					.createQuery(Tweet.class).disableValidation()
+					.order("timestamp");
+			return q;
 		}
 
-		return query;
+		return null;
 	}
 
 	public synchronized static void addTweet(Tweet tweet) {
@@ -139,6 +136,8 @@ public class StorageManager implements Runnable {
 	}
 
 	public static void storeUser(User user) {
+		datastore.delete(datastore.createQuery(User.class).filter("id",
+				user.getId()));
 		datastore.save(user);
 	}
 
@@ -183,17 +182,31 @@ public class StorageManager implements Runnable {
 		running = false;
 		for (Tweet tweet : tweets)
 			storeTweet(tweet);
+
+		synchronized (t_sm) {
+			if (t_sm != null) {
+				t_sm.interrupt();
+				t_sm = null;
+			}
+		}
 	}
 
 	public static void storeTweet(Tweet tweet) {
-		Map<Long, UserStatistics> users = Acquisition.getInterest().getUsers();
-		User user = new User(tweet.getStatus().getUser(), users.get(tweet
-				.getUserID()));
-
 		datastore.save(tweet);
+		if (!storeUserInfo)
+			return;
 
-		if (storeUserInfo)
+		if (Acquisition.getInterest() == null)
+			return;
+		User user = null;
+		long userID = tweet.getUserID();
+		UserStatistics userStatistics = Acquisition.getInterest().getUsers()
+				.get(userID);
+
+		if (userStatistics != null) {
+			user = new User(tweet.getStatus().getUser(), userStatistics);
 			storeUser(user);
+		}
 	}
 
 	public synchronized static int getQueueSize() {

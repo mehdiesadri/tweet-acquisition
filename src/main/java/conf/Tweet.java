@@ -6,7 +6,6 @@ import java.util.HashSet;
 import org.mongodb.morphia.annotations.Entity;
 import org.mongodb.morphia.annotations.Id;
 import org.mongodb.morphia.annotations.Indexed;
-import org.mongodb.morphia.annotations.Serialized;
 import org.mongodb.morphia.annotations.Transient;
 
 import twitter4j.Status;
@@ -18,7 +17,7 @@ public class Tweet {
 	@Id
 	private long id;
 
-	@Serialized
+	// @Serialized
 	private Status status;
 	@Indexed
 	private long timestamp;

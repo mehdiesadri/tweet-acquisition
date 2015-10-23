@@ -22,7 +22,6 @@ public class WindowWorker implements Runnable {
 
 	public void run() {
 		Thread.currentThread().setName("t_ww" + number);
-
 		while (window.isOpen() || window.getBufferSize() > 0) {
 			Tweet tweet = window.pollTweet();
 
@@ -31,9 +30,10 @@ public class WindowWorker implements Runnable {
 
 			double rel = satisfyLanguage(tweet) ? RelevanceCheck.getRelevance(
 					tweet, interest) : -1;
+					
 			tweet.setRelevance(rel);
-			StorageManager.addTweet(tweet);
 			updateStatistics(tweet);
+			StorageManager.addTweet(tweet);
 		}
 	}
 
@@ -45,22 +45,13 @@ public class WindowWorker implements Runnable {
 
 	private void updateStatistics(Tweet tweet) {
 		window.getStatistics().addTweet(tweet);
-
 		if (tweet.getRelevance() < 0)
 			return;
 
 		Collection<Phrase> interestPhrases = Acquisition.getInterest()
 				.getPhrases();
 
-		long userId = tweet.getUserID();
-
-		UserStatistics userStatistics = interest.getUserStatistics(userId);
-		if (userStatistics == null) {
-			interest.addUser(userId);
-			userStatistics = interest.getUserStatistics(userId);
-		}
-		userStatistics.addTweet(tweet);
-
+		interest.getUserStatistics(tweet.getUserID()).addTweet(tweet);
 		for (Phrase phrase : interestPhrases) {
 			if (tweet.containsPhrase(phrase.getText()))
 				phrase.addTweet(tweet);

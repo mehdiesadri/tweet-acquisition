@@ -29,6 +29,19 @@ public class TwitterSampler {
 
 		Configuration conf = getConfiguration();
 
+		while (true) {
+			try {
+				listen(languageClassifier, conf);
+				break;
+			} catch (Exception e) {
+				System.out.println(e.getMessage());
+				continue;
+			}
+		}
+	}
+
+	private static void listen(
+			final lang.LanguageClassifier languageClassifier, Configuration conf) {
 		StatusListener listener = new StatusListener() {
 			public void onStatus(Status status) {
 				HashSet<String> words = new HashSet<String>();
@@ -63,7 +76,9 @@ public class TwitterSampler {
 				.getInstance();
 		twitterStream.addListener(listener);
 		// sample() method internally creates a thread which manipulates
-		// TwitterStream and calls these adequate listener methods continuously.
+		// TwitterStream and calls these adequate listener methods
+		// continuously.
+
 		twitterStream.sample();
 	}
 

@@ -54,7 +54,12 @@ public class TotalStatistics {
 		stats.push(newStat);
 
 		if (stats.size() > Acquisition.maxNumberStats) {
-			stats.removeLast();
+			WindowStatistics rs = stats.removeLast();
+
+			totalTweetCount.addAndGet(rs.totalTweetCount.get());
+			deltaTweetCount.addAndGet(rs.deltaTweetCount.get());
+			relevantTweetCount.addAndGet(rs.relevantTweetCount.get());
+			irrelevantTweetCount.addAndGet(rs.irrelevantTweetCount.get());
 
 			clean(relevantPatterns, getRelevantTweetCount());
 			clean(irrelevantPatterns, getIrrelevantTweetCount());
@@ -65,15 +70,6 @@ public class TotalStatistics {
 		}
 
 		return newStat;
-	}
-
-	public void addStatInfo(WindowStatistics stat) {
-		setTotalTweetCount(getTotalTweetCount() + stat.getTotalTweetCount());
-		setRelevantTweetCount(getRelevantTweetCount()
-				+ stat.getRelevantTweetCount());
-		setIrrelevantTweetCount(getIrrelevantTweetCount()
-				+ stat.getIrrelevantTweetCount());
-		setDeltaTweetCount(getDeltaTweetCount() + stat.getDeltaTweetCount());
 	}
 
 	private void clean(Map<String, Integer> input, int totalCount) {
@@ -103,9 +99,9 @@ public class TotalStatistics {
 
 		synchronized (this) {
 			for (WindowStatistics stat : stats) {
-				tweetcount += stat.getTotalTweetCount();
+				tweetcount += stat.totalTweetCount.get();
 				avgrel += stat.getAvgRelevance()
-						* (double) stat.getTotalTweetCount();
+						* (double) stat.totalTweetCount.get();
 			}
 		}
 		return avgrel / (double) tweetcount;
@@ -145,43 +141,43 @@ public class TotalStatistics {
 	}
 
 	public int getRelevantTweetCount() {
-		WindowStatistics lws = getLastWindowStatistics();
-		int lwsc = lws == null ? 0 : lws.getRelevantTweetCount();
-		return relevantTweetCount.get() + lwsc;
-	}
-
-	public void setRelevantTweetCount(int rtc) {
-		this.relevantTweetCount.set(rtc);
+		int rtc = 0;
+		synchronized (stats) {
+			rtc = relevantTweetCount.get();
+			for (WindowStatistics stat : stats)
+				rtc += stat.relevantTweetCount.get();
+		}
+		return rtc;
 	}
 
 	public int getIrrelevantTweetCount() {
-		WindowStatistics lws = getLastWindowStatistics();
-		int lwsc = lws == null ? 0 : lws.getIrrelevantTweetCount();
-		return irrelevantTweetCount.get() + lwsc;
-	}
-
-	public void setIrrelevantTweetCount(int itc) {
-		this.irrelevantTweetCount.set(itc);
+		int irtc = 0;
+		synchronized (stats) {
+			irtc = irrelevantTweetCount.get();
+			for (WindowStatistics stat : stats)
+				irtc += stat.irrelevantTweetCount.get();
+		}
+		return irtc;
 	}
 
 	public int getDeltaTweetCount() {
-		WindowStatistics lws = getLastWindowStatistics();
-		int lwsc = lws == null ? 0 : lws.getDeltaTweetCount();
-		return deltaTweetCount.get() + lwsc;
-	}
-
-	public void setDeltaTweetCount(int dtc) {
-		this.deltaTweetCount.set(dtc);
+		int dtc = 0;
+		synchronized (stats) {
+			dtc = deltaTweetCount.get();
+			for (WindowStatistics stat : stats)
+				dtc += stat.deltaTweetCount.get();
+		}
+		return dtc;
 	}
 
 	public Integer getTotalTweetCount() {
-		WindowStatistics lws = getLastWindowStatistics();
-		int lwsc = lws == null ? 0 : lws.getTotalTweetCount();
-		return totalTweetCount.get() + lwsc;
-	}
-
-	public void setTotalTweetCount(int ttc) {
-		this.totalTweetCount.set(ttc);
+		int ttc = 0;
+		synchronized (stats) {
+			ttc = totalTweetCount.get();
+			for (WindowStatistics stat : stats)
+				ttc += stat.totalTweetCount.get();
+		}
+		return ttc;
 	}
 
 	public Map<String, Integer> getRelevantPatterns() {

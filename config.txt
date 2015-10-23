@@ -8,7 +8,7 @@ AccessTokenSecret=GuCChvZjr5DSkyA5VcPx5doU7GTD6HVuKYW42A0RHyQ
 QueryFilePath=./queries.json
 
 #MongoDB
-MongoDBDatabaseHost=128.195.53.246
+MongoDBDatabaseHost=sensoria.ics.uci.edu
 MongoDBDatabasePort=27017
 MongoDBDatabase=sodas
 MongoDBSampleDatabase=sample
@@ -23,12 +23,12 @@ MongoDBResultMetadataCollection=metadata
 MongoDBStoreUserInfo=true
 
 #AcquisitionModule
-AcquisitionTweetRelevanceThreshold=.2
-AcquisitionTweetIrrelevanceThreshold=.05
+AcquisitionTweetRelevanceThreshold=.5
+AcquisitionTweetIrrelevanceThreshold=.1
 AcquisitionMinWindowLength=5
-AcquisitionMinNumberOfTweets=10
-AcquisitionStartWindowSize=2000
-AcquisitionPhraseLimit=400
+AcquisitionMinNumberOfTweets=5
+AcquisitionStartWindowSize=50
+AcquisitionPhraseLimit=20
 AcquisitionLocationLimit=250
 AcquisitionUserLimit=250
 AcquisitionEEFraction=.25
@@ -41,7 +41,7 @@ AcquisitionMaxNumberStats=5
 #Simulation
 UseSimulator=false
 SimulationDBName=sample
-SimulationLimit=10000
+SimulationLimit=-1
 
 #AnalysisModule
 AnalysisHost=localhost

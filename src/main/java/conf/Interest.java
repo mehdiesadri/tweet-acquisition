@@ -240,13 +240,9 @@ public class Interest {
 		return users;
 	}
 
-	public void addUser(long id) {
-		users.put(id, new UserStatistics(id));
-	}
-
-	public UserStatistics getUserStatistics(long userId) {
-		if (users.containsKey(userId))
-			return users.get(userId);
-		return null;
+	public UserStatistics getUserStatistics(long id) {
+		if (!users.containsKey(id))
+			users.put(id, new UserStatistics(id));
+		return users.get(id);
 	}
 }

@@ -128,7 +128,7 @@ public class Phrase {
 		if (lastWindowStatistics == null)
 			return 0;
 		reward += lastWindowStatistics.getAvgRelevance()
-				* lastWindowStatistics.getTotalTweetCount();
+				* lastWindowStatistics.totalTweetCount.get();
 		if (reward == 0)
 			reward = 1;
 		reward = reward * weight;

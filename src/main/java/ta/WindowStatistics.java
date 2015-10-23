@@ -19,52 +19,31 @@ import util.SetUtil;
 import conf.Tweet;
 
 @Embedded("statistics")
-public class WindowStatistics {
-	@Transient
-	private volatile boolean done;
-
+public class WindowStatistics extends Statistics {
 	private volatile Map<String, Integer> relevantPatterns;
 	private volatile Map<String, Integer> irrelevantPatterns;
 	private volatile Map<String, Integer> relevantHashtags;
 	private volatile Map<String, Integer> irrelevantHashtags;
+
+	public volatile AtomicInteger addedPhraseCount;
+	public volatile AtomicInteger removedPhraseCount;
+	public volatile AtomicInteger generalizedPhraseCount;
+	public volatile AtomicInteger specializedPhraseCount;
+
+	@Transient
+	private volatile boolean done;
+
 	private volatile Map<String, Integer> relevantMentions;
 	private volatile Map<String, Integer> irrelevantMentions;
 
-	private volatile AtomicInteger totalTweetCount;
-	private volatile AtomicInteger relevantTweetCount;
-	private volatile AtomicInteger irrelevantTweetCount;
-	private volatile AtomicInteger neutralTweetCount;
-	private volatile AtomicInteger deltaTweetCount;
-
-	private volatile double avgRelevance;
-	private volatile double maxRelevance;
-	private volatile double minRelevance;
-
 	@Transient
 	private volatile long duration;
-	@Transient
-	private double relevanceThreshold;
-	@Transient
-	private double irrelevanceThreshold;
-	@Transient
-	private TotalStatistics parent;
 
 	public WindowStatistics(TotalStatistics pstat) {
-		parent = pstat;
-		relevanceThreshold = Acquisition.getInterest()
-				.getTweetRelevanceThreshold();
-		irrelevanceThreshold = Acquisition.getInterest()
-				.getTweetIrrelevanceThreshold();
-
-		totalTweetCount = new AtomicInteger(0);
-		relevantTweetCount = new AtomicInteger(0);
-		irrelevantTweetCount = new AtomicInteger(0);
-		neutralTweetCount = new AtomicInteger(0);
-		deltaTweetCount = new AtomicInteger(0);
-
-		avgRelevance = 0;
-		maxRelevance = 0;
-		minRelevance = 0;
+		addedPhraseCount = new AtomicInteger(0);
+		removedPhraseCount = new AtomicInteger(0);
+		generalizedPhraseCount = new AtomicInteger(0);
+		specializedPhraseCount = new AtomicInteger(0);
 
 		duration = 0;
 		done = false;
@@ -77,14 +56,9 @@ public class WindowStatistics {
 		irrelevantMentions = new ConcurrentHashMap<String, Integer>();
 	}
 
+	@Override
 	public void addTweet(Tweet tweet) {
-		totalTweetCount.incrementAndGet();
-
-		if (tweet.getRelevance() < 0)
-			return;
-
-		updateRelevanceStatistics(tweet);
-
+		super.addTweet(tweet);
 		if (tweet.getRelevance() < relevanceThreshold
 				&& tweet.getRelevance() > irrelevanceThreshold)
 			return;
@@ -97,28 +71,6 @@ public class WindowStatistics {
 			clean(relevantPatterns, relevantTweetCount.get());
 		if (irrelevantPatterns.size() > Acquisition.maxNumberOfPatterns)
 			clean(irrelevantPatterns, irrelevantTweetCount.get());
-	}
-
-	private synchronized void updateRelevanceStatistics(Tweet tweet) {
-		double r = tweet.getRelevance();
-
-		synchronized (this) {
-			if (r > relevanceThreshold)
-				relevantTweetCount.incrementAndGet();
-			else if (r < irrelevanceThreshold)
-				irrelevantTweetCount.incrementAndGet();
-			else
-				neutralTweetCount.incrementAndGet();
-
-			if (r > maxRelevance)
-				maxRelevance = r;
-
-			if (r <= minRelevance || minRelevance == 0)
-				minRelevance = r;
-
-			avgRelevance = ((double) (getTotalTweetCount() - 1) * avgRelevance + r)
-					/ (double) getTotalTweetCount();
-		}
 	}
 
 	private synchronized void extractPatterns(Tweet tweet) {
@@ -217,7 +169,6 @@ public class WindowStatistics {
 					.addIrrelevantHashtag(ht, irrelevantHashtags.get(ht));
 
 		done = true;
-		parent.addStatInfo(this);
 		setDuration(d);
 	}
 
@@ -248,38 +199,6 @@ public class WindowStatistics {
 
 	public double getAvgRelevance() {
 		return avgRelevance;
-	}
-
-	public int getTotalTweetCount() {
-		return totalTweetCount.get();
-	}
-
-	public int getRelevantTweetCount() {
-		return relevantTweetCount.get();
-	}
-
-	public int getIrrelevantTweetCount() {
-		return irrelevantTweetCount.get();
-	}
-
-	public void setRelevantTweetCount(int rtc) {
-		this.relevantTweetCount.set(rtc);
-	}
-
-	public void setIrrelevantTweetCount(int itc) {
-		this.irrelevantTweetCount.set(itc);
-	}
-
-	public void setAvgRelevance(double avgRelevance) {
-		this.avgRelevance = avgRelevance;
-	}
-
-	public void setMaxRelevance(double maxRelevance) {
-		this.maxRelevance = maxRelevance;
-	}
-
-	public void setMinRelevance(double minRelevance) {
-		this.minRelevance = minRelevance;
 	}
 
 	public Map<String, Integer> getRelevantPatterns() {
@@ -324,27 +243,7 @@ public class WindowStatistics {
 		this.duration = duration;
 	}
 
-	public int getDeltaTweetCount() {
-		return deltaTweetCount.get();
-	}
-
-	public void setDeltaTweetCount(int dtc) {
-		this.deltaTweetCount.set(dtc);
-	}
-
-	public void incrementDeltaTweetCount() {
-		this.deltaTweetCount.incrementAndGet();
-	}
-
-	public void setTotalTweetCount(int ttc) {
-		this.totalTweetCount.set(ttc);
-	}
-
 	public boolean isDone() {
 		return done;
-	}
-
-	public TotalStatistics getParent() {
-		return parent;
 	}
 }

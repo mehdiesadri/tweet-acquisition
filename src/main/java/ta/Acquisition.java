@@ -46,7 +46,7 @@ public class Acquisition implements Runnable {
 	public volatile static LanguageClassifier languageClassifier;
 
 	private static TwitterSimulator simulator;
-	private static final String termCommonnessHost = "128.195.53.246";
+	private static final String termCommonnessHost = "sensoria.ics.uci.edu";
 	private static final int termCommonnessPort = 9090;
 
 	private volatile static Acquisition instance = null;
@@ -130,7 +130,7 @@ public class Acquisition implements Runnable {
 				window.open();
 
 				if (isSimulating()) {
-					simulator.start();
+					getSimulator().start();
 					logger.info("Simulation is started.");
 				} else {
 					startNewListener();
@@ -152,13 +152,18 @@ public class Acquisition implements Runnable {
 					else
 						InterestUpdater.quickUpdate();
 
-					window.shutdown();
+					if (window != null)
+						window.shutdown();
 				}
 
 				Report report = new Report(window, query);
 				StorageManager.storeReport(report);
 
-				stopListener();
+				if (isSimulating()) {
+					getSimulator().stop();
+				} else {
+					stopListener();
+				}
 			} catch (InterruptedException e) {
 				Thread.currentThread().interrupt();
 			}
@@ -181,11 +186,22 @@ public class Acquisition implements Runnable {
 		if (running) {
 			running = false;
 
-			listener.stopListening();
-			t_tl.interrupt();
+			if (isSimulating())
+				getSimulator().stop();
+			else
+				listener.stopListening();
+
+			if (t_tl != null) {
+				t_tl.interrupt();
+				t_tl = null;
+			}
 
 			window.close();
 			StorageManager.stop();
+		}
+
+		synchronized (instance) {
+			instance.notifyAll();
 		}
 	}
 
@@ -263,5 +279,9 @@ public class Acquisition implements Runnable {
 	public static void setInterest(Interest interest) {
 		Acquisition.interest = interest;
 		Acquisition.interest.computeFrequencies();
+	}
+
+	public static TwitterSimulator getSimulator() {
+		return simulator;
 	}
 }

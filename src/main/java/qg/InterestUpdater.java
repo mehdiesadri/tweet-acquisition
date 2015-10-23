@@ -32,8 +32,8 @@ public class InterestUpdater {
 	}
 
 	public static void quickUpdate() {
-		if (Acquisition.getCurrentWindow().getStatistics()
-				.getRelevantTweetCount() == 0)
+		if (Acquisition.getCurrentWindow().getStatistics().relevantTweetCount
+				.get() == 0)
 			return;
 
 		Interest interest = Acquisition.getInterest();
@@ -43,11 +43,11 @@ public class InterestUpdater {
 		synchronized (phrases) {
 			for (Phrase phrase : phrases) {
 				int windowTweetCount = interest.getStatistics()
-						.getLastWindowStatistics().getTotalTweetCount();
+						.getLastWindowStatistics().totalTweetCount.get();
 				int totalIrrelevantTweetCount = phrase.getStatistics()
-						.getLastWindowStatistics().getIrrelevantTweetCount();
+						.getLastWindowStatistics().irrelevantTweetCount.get();
 				int totalRelevantTweetCount = phrase.getStatistics()
-						.getLastWindowStatistics().getRelevantTweetCount();
+						.getLastWindowStatistics().relevantTweetCount.get();
 
 				if (((double) totalIrrelevantTweetCount > ((double) windowTweetCount * .01) && totalRelevantTweetCount == 0)
 						|| ((double) totalRelevantTweetCount < ((double) totalIrrelevantTweetCount * .001))) {
@@ -62,8 +62,8 @@ public class InterestUpdater {
 	}
 
 	public static void update() {
-		if (Acquisition.getCurrentWindow().getStatistics()
-				.getRelevantTweetCount() == 0)
+		if (Acquisition.getCurrentWindow().getStatistics().relevantTweetCount
+				.get() == 0)
 			return;
 
 		Interest interest = Acquisition.getInterest();

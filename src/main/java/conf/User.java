@@ -22,15 +22,14 @@ public class User {
 		statistics = s;
 		if (u != null)
 			id = getUserInfo().getId();
-		statistics = new UserStatistics(id);
-	}
-
-	public twitter4j.User getUserInfo() {
-		return userInfo;
 	}
 
 	public long getId() {
 		return id;
+	}
+
+	public twitter4j.User getUserInfo() {
+		return userInfo;
 	}
 
 	public UserStatistics getStatistics() {

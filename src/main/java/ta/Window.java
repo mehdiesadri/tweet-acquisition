@@ -69,18 +69,19 @@ public class Window implements Runnable {
 	public void shutdown() {
 		synchronized (this) {
 			printReport();
-			t_cw.interrupt();
-			t_cw = null;
+			if (t_cw != null) {
+				t_cw.interrupt();
+				t_cw = null;
+			}
 			System.gc();
 		}
 		logger.info("window has been shutdown.");
 	}
 
 	public void addTweet(Tweet tweet) {
+		int windowSize = Acquisition.getWindowSize();
 		if (isOpen()
-				&& (statistics.getRelevantTweetCount() >= Acquisition
-						.getWindowSize() || !Acquisition.getInterest()
-						.getStatistics().isFull())
+				&& (statistics.relevantTweetCount.get() >= windowSize)
 				&& (Acquisition.isSimulating() || getLength() > Acquisition.minWindowLength)) {
 			close();
 		}
@@ -88,7 +89,7 @@ public class Window implements Runnable {
 		if (isOpen())
 			tweetBuffer.add(tweet);
 		else {
-			getStatistics().incrementDeltaTweetCount();
+			getStatistics().deltaTweetCount.incrementAndGet();
 			tweet.setRelevance(.5);
 			StorageManager.addTweet(tweet);
 		}
@@ -170,29 +171,28 @@ public class Window implements Runnable {
 	}
 
 	private void printReport() {
-		logger.info("Window Tweet Count: " + statistics.getTotalTweetCount());
-		logger.info("Window English Tweet Count: "
-				+ statistics.getTotalTweetCount());
-		logger.info("Window Total English Relevant Tweet Count: "
-				+ statistics.getRelevantTweetCount());
-		logger.info("Window Avg  Tweet Relevance: "
-				+ statistics.getAvgRelevance());
-		logger.info("Window Min  Tweet Relevance: "
-				+ statistics.getMinRelevance());
-		logger.info("Window Relevant Hashtag Count: "
-				+ statistics.getRelevantHashtags().size());
-		logger.info("Window Irrelevant Hashtag Count: "
-				+ statistics.getIrrelevantHashtags().size());
-		logger.info("Total User Count: "
-				+ Acquisition.getInterest().getUsers().size());
-		logger.info("Total tweet count: "
+		logger.info("WTC: " + statistics.totalTweetCount.get());
+		int tetc = statistics.relevantTweetCount.get()
+				+ statistics.irrelevantTweetCount.get();
+		logger.info("WETC: " + tetc);
+		logger.info("WRTC: " + statistics.relevantTweetCount);
+		logger.info("WAvgRel: " + statistics.getAvgRelevance());
+		logger.info("WMinRel: " + statistics.getMinRelevance());
+		logger.info("WRHC: " + statistics.getRelevantHashtags().size());
+		logger.info("WIHC: " + statistics.getIrrelevantHashtags().size());
+		logger.info("TUC: " + Acquisition.getInterest().getUsers().size());
+		logger.info("TTC: "
 				+ Acquisition.getInterest().getStatistics()
 						.getTotalTweetCount());
-		logger.info("Total relevant tweet count: "
+		logger.info("TRTC: "
 				+ Acquisition.getInterest().getStatistics()
 						.getRelevantTweetCount());
-		logger.info("Total delta tweet count: "
+		logger.info("TDTC: "
 				+ Acquisition.getInterest().getStatistics()
 						.getDeltaTweetCount());
+		if (Acquisition.isSimulating()) {
+			logger.info("STC: " + Acquisition.getSimulator().getTotalCounter());
+			logger.info("SRTC: " + Acquisition.getSimulator().getMatchCounter());
+		}
 	}
 }
