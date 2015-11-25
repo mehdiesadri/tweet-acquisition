@@ -1,6 +1,8 @@
 package stm;
 
 import java.net.UnknownHostException;
+import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -123,6 +125,28 @@ public class StorageManager implements Runnable {
 		return null;
 	}
 
+	public synchronized static ArrayList<Tweet> getTopTweets(String interestId) {
+		ArrayList<Tweet> tweets = null;
+		if (datastore != null) {
+			tweets = new ArrayList<Tweet>();
+			Iterator<Tweet> tweetIterator = datastore.createQuery(Tweet.class)
+					.disableValidation().filter("interest =", interestId)
+					.order("-timestamp").iterator();
+
+			int count = 10;
+			while (tweetIterator.hasNext() && count > 0) {
+				try {
+					tweets.add(tweetIterator.next());
+					count--;
+				} catch (Exception e) {
+					System.out.println(e.getMessage());
+				}
+			}
+		}
+
+		return tweets;
+	}
+
 	public synchronized static void addTweet(Tweet tweet) {
 		tweets.add(tweet);
 	}
@@ -160,12 +184,15 @@ public class StorageManager implements Runnable {
 		return interests;
 	}
 
-	public void main(String[] args) throws Exception {
-		Phrase phrase = new Phrase();
-		phrase.setText("iran");
+	public static void main(String[] args) throws Exception {
+		StorageManager.getInstance();
 
-		Tweet t = new Tweet(null);
-		storeTweet(t);
+		ArrayList<Tweet> tweets = getTopTweets("71");
+
+		for (Tweet t : tweets) {
+			System.out.println(t.getTimestamp() + " -- " + t.getInterestId()
+					+ " -- " + t.getText());
+		}
 	}
 
 	public static void clearReports() {

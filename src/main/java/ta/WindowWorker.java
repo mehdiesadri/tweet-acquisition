@@ -30,8 +30,9 @@ public class WindowWorker implements Runnable {
 
 			double rel = satisfyLanguage(tweet) ? RelevanceCheck.getRelevance(
 					tweet, interest) : -1;
-					
+
 			tweet.setRelevance(rel);
+			tweet.setInterestId(Acquisition.getInterest().getId());
 			updateStatistics(tweet);
 			StorageManager.addTweet(tweet);
 		}

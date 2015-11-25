@@ -21,6 +21,8 @@ public class Tweet {
 	private Status status;
 	@Indexed
 	private long timestamp;
+
+	private String interest;
 	private double relevance;
 
 	@Transient
@@ -101,8 +103,16 @@ public class Tweet {
 		return relevance;
 	}
 
+	public String getInterestId() {
+		return interest;
+	}
+
 	public void setRelevance(double relevance) {
 		this.relevance = relevance;
+	}
+
+	public void setInterestId(String interestId) {
+		this.interest = interestId;
 	}
 
 	public long getTimestamp() {

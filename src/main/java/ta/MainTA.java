@@ -21,6 +21,7 @@ public class MainTA {
 		String command = null;
 
 		StorageManager.getInstance();
+
 		// StorageManager.clearReports();
 		// StorageManager.clearAll();
 

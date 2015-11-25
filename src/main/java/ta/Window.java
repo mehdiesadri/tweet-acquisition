@@ -91,6 +91,7 @@ public class Window implements Runnable {
 		else {
 			getStatistics().deltaTweetCount.incrementAndGet();
 			tweet.setRelevance(.5);
+			tweet.setInterestId(Acquisition.getInterest().getId());
 			StorageManager.addTweet(tweet);
 		}
 	}
