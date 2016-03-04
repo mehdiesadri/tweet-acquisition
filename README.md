@@ -1,4 +1,6 @@
-tweet-acquisition
+TAS: tweet acquisition system
+Online Adaptive Topic Focused Tweet Acquisition
+
 =================
 
 Twitter provides a public streaming API that is strictly limited, making it difficult to simultaneously achieve good coverage and relevance when monitoring tweets for a specific topic of interest. In TAS, we address the tweet acquisition
