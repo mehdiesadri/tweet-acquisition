@@ -1,4 +1,4 @@
-TAS: tweet acquisition system
+<b>TAS: tweet acquisition system</b>
 
 Online Adaptive Topic Focused Tweet Acquisition
 
