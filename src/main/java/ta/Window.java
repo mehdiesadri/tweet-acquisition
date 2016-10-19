@@ -1,6 +1,8 @@
 package ta;
 
 import java.util.Collection;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -11,6 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import stm.StorageManager;
+import topk.TopK;
 import conf.Interest;
 import conf.Phrase;
 import conf.Tweet;
@@ -33,6 +36,8 @@ public class Window implements Runnable {
 	private volatile boolean open;
 	private volatile boolean done;
 
+	private List<String> topEntities;
+
 	public Window() {
 		done = false;
 		tweetBuffer = new LinkedBlockingQueue<Tweet>();
@@ -40,6 +45,7 @@ public class Window implements Runnable {
 		executor = Executors.newFixedThreadPool(workerPoolSize);
 		t_cw = new Thread(this);
 		t_cw.setName("t_cw");
+		topEntities = new LinkedList<String>();
 	}
 
 	public void open() {
@@ -85,6 +91,9 @@ public class Window implements Runnable {
 				&& (Acquisition.isSimulating() || getLength() > Acquisition.minWindowLength)) {
 			close();
 		}
+
+		// top-k
+		TopK.enrich(tweet);
 
 		if (isOpen())
 			tweetBuffer.add(tweet);
@@ -195,5 +204,13 @@ public class Window implements Runnable {
 			logger.info("STC: " + Acquisition.getSimulator().getTotalCounter());
 			logger.info("SRTC: " + Acquisition.getSimulator().getMatchCounter());
 		}
+	}
+
+	public List<String> getTopEntities() {
+		return topEntities;
+	}
+
+	public void setTopEntities(List<String> topEntities) {
+		this.topEntities = topEntities;
 	}
 }

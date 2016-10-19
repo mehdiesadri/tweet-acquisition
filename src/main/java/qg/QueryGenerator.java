@@ -74,6 +74,8 @@ public class QueryGenerator {
 		}
 
 		logger.info("Number of phrases to explore: " + phrasesToExploreCount);
+
+		logger.info("Choosen Phrases are: " + query.getPhrases().keySet());
 		return query;
 	}
 

@@ -13,12 +13,11 @@ import org.mongodb.morphia.Morphia;
 import ta.Acquisition;
 import ta.UserStatistics;
 
-import com.mongodb.Mongo;
 import com.mongodb.MongoClient;
 
 import conf.ConfigMgr;
 import conf.Interest;
-import conf.Phrase;
+import conf.JsonTweet;
 import conf.Report;
 import conf.Tweet;
 import conf.User;
@@ -48,7 +47,7 @@ public class StorageManager implements Runnable {
 		int port = Integer.parseInt(ConfigMgr
 				.readConfigurationParameter("MongoDBDatabasePort"));
 
-		Mongo m = null;
+		MongoClient m = null;
 		try {
 			m = new MongoClient(host, port);
 		} catch (UnknownHostException e) {
@@ -186,8 +185,7 @@ public class StorageManager implements Runnable {
 
 	public static void main(String[] args) throws Exception {
 		StorageManager.getInstance();
-
-		ArrayList<Tweet> tweets = getTopTweets("71");
+		ArrayList<Tweet> tweets = getTopTweets("1");
 
 		for (Tweet t : tweets) {
 			System.out.println(t.getTimestamp() + " -- " + t.getInterestId()
@@ -219,7 +217,10 @@ public class StorageManager implements Runnable {
 	}
 
 	public static void storeTweet(Tweet tweet) {
-		datastore.save(tweet);
+		// JsonTweet t = new JsonTweet(tweet);
+		Tweet t = tweet;
+		datastore.save(t);
+
 		if (!storeUserInfo)
 			return;
 

@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import stm.StorageManager;
+import topk.TopK;
 import conf.ConfigMgr;
 import conf.Interest;
 
@@ -21,7 +22,6 @@ public class MainTA {
 		String command = null;
 
 		StorageManager.getInstance();
-
 		// StorageManager.clearReports();
 		// StorageManager.clearAll();
 
@@ -96,6 +96,9 @@ public class MainTA {
 		}
 
 		logger.info(title);
+
+		// just to get it instantiated
+		new TopK();
 
 		Acquisition.getInstance();
 		Acquisition.setInterest(selectedInterest);

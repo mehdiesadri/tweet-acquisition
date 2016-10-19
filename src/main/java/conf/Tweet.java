@@ -1,8 +1,11 @@
 package conf;
 
 import java.util.Date;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 
+import org.mongodb.morphia.annotations.Embedded;
 import org.mongodb.morphia.annotations.Entity;
 import org.mongodb.morphia.annotations.Id;
 import org.mongodb.morphia.annotations.Indexed;
@@ -14,16 +17,20 @@ import txt.TextNormalizer;
 
 @Entity("tweet")
 public class Tweet {
+
 	@Id
 	private long id;
 
-	// @Serialized
+	// @Serializeds
 	private Status status;
 	@Indexed
 	private long timestamp;
 
 	private String interest;
 	private double relevance;
+
+	@Embedded("entities")
+	private HashMap<String, String> entities;
 
 	@Transient
 	private HashSet<String> terms;
@@ -32,12 +39,17 @@ public class Tweet {
 	}
 
 	public Tweet(Status s) {
+		entities = new HashMap<String, String>(); // Mention-Entity
 		relevance = 0;
 		status = s;
 		if (getStatus() != null) {
 			id = getStatus().getId();
 			timestamp = getStatus().getCreatedAt().getTime();
 		}
+	}
+
+	public Map<String, String> getEntities() {
+		return entities;
 	}
 
 	public boolean containsPhrase(String p) {
@@ -121,5 +133,9 @@ public class Tweet {
 
 	public void setTimestamp(long timestamp) {
 		this.timestamp = timestamp;
+	}
+
+	public void addEntity(String mention, String ents) {
+		entities.put(mention, ents);
 	}
 }

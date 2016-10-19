@@ -10,11 +10,11 @@ QueryFilePath=./queries.json
 #MongoDB
 MongoDBDatabaseHost=sensoria.ics.uci.edu
 MongoDBDatabasePort=27017
-MongoDBDatabase=dataworld
+MongoDBDatabase=sodas
 MongoDBSampleDatabase=sample
 MongoDBInterestCollection=interest
 MongoDBAnalysisCollection=analysis
-MongoDBTweetCollection=tweet
+MongoDBTweetCollection=tweet2
 MongoDBUserCollection=user
 MongoDBResultCollection=result
 MongoDBReportCollection=report
@@ -22,17 +22,13 @@ MongoDBUserCollection=user
 MongoDBResultMetadataCollection=metadata
 MongoDBStoreUserInfo=true
 
-#KnowledgeBase
-KBHost=sensoria.ics.uci.edu
-KBPort=9090
-
 #AcquisitionModule
 AcquisitionTweetRelevanceThreshold=.5
 AcquisitionTweetIrrelevanceThreshold=.1
-AcquisitionMinWindowLength=60
-AcquisitionMinNumberOfTweets=100
-AcquisitionStartWindowSize=5000
-AcquisitionPhraseLimit=50
+AcquisitionMinWindowLength=2
+AcquisitionMinNumberOfTweets=10
+AcquisitionStartWindowSize=50
+AcquisitionPhraseLimit=20
 AcquisitionLocationLimit=250
 AcquisitionUserLimit=250
 AcquisitionEEFraction=.25
