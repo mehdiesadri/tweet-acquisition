@@ -5,8 +5,9 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.Socket;
-import java.util.LinkedList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -16,23 +17,23 @@ import conf.ConfigMgr;
 import conf.Tweet;
 
 public class TopK {
-	private static final String category = "politicians";
+	private static final String category = "people";
 	final static Logger logger = LogManager.getLogger(TopK.class.getName());
 
-	private static LinkedList<TopKWindow> windows;
-	private static int WindowSize = 500;
-	private static int SlideSize = 100;
+	private static TopKWindow window;
 	private static String kb_host;
 	private static int kb_port;
 	private static Socket client;
+	private static Map<String, String> kb_buffer;
+	private static Map<String, Double> tc_buffer;
 
 	public TopK() {
 		kb_host = ConfigMgr.readConfigurationParameter("KBHost");
 		kb_port = Integer.valueOf(ConfigMgr
 				.readConfigurationParameter("KBPort"));
-		windows = new LinkedList<TopKWindow>();
-		for (int i = 0; i < (double) WindowSize / (double) SlideSize; i++)
-			windows.add(new TopKWindow(System.currentTimeMillis() + i));
+		kb_buffer = new HashMap<String, String>();
+		tc_buffer = new HashMap<String, Double>();
+		window = new TopKWindow(System.currentTimeMillis());
 	}
 
 	// top-k thing
@@ -53,51 +54,45 @@ public class TopK {
 			String t2 = tts;
 			String t3 = tts;
 
-			String[] tc = TopK.executeCmd("tc~" + tts).split("\t");
-			Double commonness = tc.length > 0 ? Double.valueOf(tc[1].trim())
-					: 0;
-			if (commonness >= .6)
+			if (getTermCommonness(tts) >= .6)
 				continue;
+			String ents = simpleLookup(tts);
 
-			String ents = TopK.executeCmd("gttl-" + category + "~" + tts);
 			if (!tts.equals(ents.trim())) {
-				addEntity(t, tts, ents);
+				window.addEntity(t, tts, ents);
 				if (i + 1 < ts.size()) {
 					t2 = t2 + "," + ts.get(i + 1);
 					t3 = t2;
-					ents = TopK.executeCmd("gttl-" + category + "~" + t2);
-					if (!t2.equals(ents.trim())) {
-						addEntity(t, t2, ents);
-					}
+					ents = simpleLookup(t2);
+					if (!t2.equals(ents.trim()))
+						window.addEntity(t, t2, ents);
 				}
 				if (i + 2 < ts.size()) {
 					t3 = t3 + "," + ts.get(i + 2);
-					ents = TopK.executeCmd("gttl-" + category + "~" + t3);
-					if (!t3.equals(ents.trim())) {
-						addEntity(t, t3, ents);
-					}
+					ents = simpleLookup(t3);
+					if (!t3.equals(ents.trim()))
+						window.addEntity(t, t3, ents);
 				}
 			}
 		}
 
-		for (int i = 0; i < (double) WindowSize / (double) SlideSize; i++) {
-			if (i > windows.size() - 1)
-				windows.add(new TopKWindow(System.currentTimeMillis()));
-			windows.get(i).incrementWindowTweetCount();
-		}
 	}
 
-	private static void addEntity(Tweet tweet, String mention, String ents) {
-		if (windows.getFirst().windowTweetCount <= WindowSize) {
-			for (int i = 0; i < (double) WindowSize / (double) SlideSize; i++) {
-				if (windows.getFirst().windowTweetCount > i
-						* ((double) SlideSize))
-					windows.get(i).addEntity(tweet, mention, ents);
-			}
-		} else {
-			windows.removeFirst().printReport();
-			windows.addLast(new TopKWindow(System.currentTimeMillis()));
-		}
+	private static double getTermCommonness(String query) {
+		if (tc_buffer.containsKey(query))
+			return tc_buffer.get(query);
+		String[] tc = TopK.executeCmd("tc~" + query).split("\t");
+		Double commonness = tc.length > 0 ? Double.valueOf(tc[1].trim()) : 0;
+		tc_buffer.put(query, commonness);
+		return commonness;
+	}
+
+	private static String simpleLookup(String query) {
+		if (kb_buffer.containsKey(query))
+			return kb_buffer.get(query);
+		String ents = TopK.executeCmd("gttl-" + category + "~" + query);
+		kb_buffer.put(query, ents);
+		return ents;
 	}
 
 	public static String executeCmd(String term) {

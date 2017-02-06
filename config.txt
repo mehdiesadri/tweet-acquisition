@@ -29,9 +29,9 @@ KBPort=9090
 #AcquisitionModule
 AcquisitionTweetRelevanceThreshold=.5
 AcquisitionTweetIrrelevanceThreshold=.1
-AcquisitionMinWindowLength=60
-AcquisitionMinNumberOfTweets=100
-AcquisitionStartWindowSize=5000
+AcquisitionMinWindowLength=5
+AcquisitionMinNumberOfTweets=100000
+AcquisitionWindowSize=100000
 AcquisitionPhraseLimit=50
 AcquisitionLocationLimit=250
 AcquisitionUserLimit=250

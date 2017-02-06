@@ -70,7 +70,7 @@ public class Acquisition implements Runnable {
 		minWindowLength = Integer.valueOf(ConfigMgr
 				.readConfigurationParameter("AcquisitionMinWindowLength")) * 60 * 1000;
 		windowSize = Integer.valueOf(ConfigMgr
-				.readConfigurationParameter("AcquisitionStartWindowSize"));
+				.readConfigurationParameter("AcquisitionWindowSize"));
 		simulating = Boolean.valueOf(ConfigMgr
 				.readConfigurationParameter("UseSimulator"));
 		minNumberOfTweets = Integer.valueOf(ConfigMgr
