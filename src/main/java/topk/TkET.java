@@ -66,9 +66,12 @@ public class TkET {
 		List<EntityBlock> topk = null;
 		for (EntityBlock eb : eg.ebs)
 			eb.calculateCountProbabilities();
+		
 		eg.updateGraph();
+		
 		if (print_report)
 			eg.printGraph();
+		
 		if (stopping_criteria == 1)
 			topk = eg.checkStoppingCriteria(k, false);
 		else

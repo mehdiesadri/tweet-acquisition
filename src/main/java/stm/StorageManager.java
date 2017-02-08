@@ -17,7 +17,6 @@ import com.mongodb.MongoClient;
 
 import conf.ConfigMgr;
 import conf.Interest;
-import conf.JsonTweet;
 import conf.Report;
 import conf.Tweet;
 import conf.User;
@@ -130,7 +129,7 @@ public class StorageManager implements Runnable {
 			tweets = new ArrayList<Tweet>();
 			Iterator<Tweet> tweetIterator = datastore.createQuery(Tweet.class)
 					.disableValidation().filter("interest =", interestId)
-					.order("-timestamp").iterator();
+					.order("-timestamp").limit(50).iterator();
 
 			int count = 10;
 			while (tweetIterator.hasNext() && count > 0) {
@@ -144,6 +143,19 @@ public class StorageManager implements Runnable {
 		}
 
 		return tweets;
+	}
+
+	public synchronized static Report getLatestReport(String interestId) {
+		if (datastore != null) {
+			List<Report> reports = datastore.createQuery(Report.class)
+					.disableValidation().filter("interestId =", interestId)
+					.order("-timestamp").limit(2).asList();
+
+			if (reports.size() > 0)
+				reports.get(0);
+		}
+
+		return null;
 	}
 
 	public synchronized static void addTweet(Tweet tweet) {
@@ -185,12 +197,21 @@ public class StorageManager implements Runnable {
 
 	public static void main(String[] args) throws Exception {
 		StorageManager.getInstance();
-		ArrayList<Tweet> tweets = getTopTweets("1");
+		clearAll();
+		
+		// List<Interest> interests = getInterests();
+		// for (Interest interest : interests)
+		// System.out.println(interest.getId());
 
-		for (Tweet t : tweets) {
-			System.out.println(t.getTimestamp() + " -- " + t.getInterestId()
-					+ " -- " + t.getText());
-		}
+		// ArrayList<Tweet> tweets = getTopTweets("35");
+		//
+		// for (Tweet t : tweets) {
+		// System.out.println(t.getTimestamp() + " -- " + t.getInterestId()
+		// + " -- " + t.getText());
+		// }
+
+		Report report = getLatestReport("45");
+		System.out.println(report.getStartTime());
 	}
 
 	public static void clearReports() {

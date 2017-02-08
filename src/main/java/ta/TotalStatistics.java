@@ -49,7 +49,7 @@ public class TotalStatistics {
 	}
 
 	public WindowStatistics addNewStat() {
-		WindowStatistics newStat = new WindowStatistics(this);
+		WindowStatistics newStat = new WindowStatistics();
 
 		stats.push(newStat);
 

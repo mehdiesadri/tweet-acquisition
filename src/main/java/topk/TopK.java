@@ -12,6 +12,8 @@ import java.util.Map;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import ta.Acquisition;
+import ta.Window;
 import txt.TextNormalizer;
 import conf.ConfigMgr;
 import conf.Tweet;
@@ -20,7 +22,7 @@ public class TopK {
 	private static final String category = "people";
 	final static Logger logger = LogManager.getLogger(TopK.class.getName());
 
-	private static TopKWindow window;
+	// private static TopKWindow window;
 	private static String kb_host;
 	private static int kb_port;
 	private static Socket client;
@@ -33,7 +35,7 @@ public class TopK {
 				.readConfigurationParameter("KBPort"));
 		kb_buffer = new HashMap<String, String>();
 		tc_buffer = new HashMap<String, Double>();
-		window = new TopKWindow(System.currentTimeMillis());
+		// window = new TopKWindow(System.currentTimeMillis());
 	}
 
 	// top-k thing
@@ -59,19 +61,19 @@ public class TopK {
 			String ents = simpleLookup(tts);
 
 			if (!tts.equals(ents.trim())) {
-				window.addEntity(t, tts, ents);
+				Acquisition.getCurrentWindow().addEntity(t, tts, ents);
 				if (i + 1 < ts.size()) {
 					t2 = t2 + "," + ts.get(i + 1);
 					t3 = t2;
 					ents = simpleLookup(t2);
 					if (!t2.equals(ents.trim()))
-						window.addEntity(t, t2, ents);
+						Acquisition.getCurrentWindow().addEntity(t, t2, ents);
 				}
 				if (i + 2 < ts.size()) {
 					t3 = t3 + "," + ts.get(i + 2);
 					ents = simpleLookup(t3);
 					if (!t3.equals(ents.trim()))
-						window.addEntity(t, t3, ents);
+						Acquisition.getCurrentWindow().addEntity(t, t3, ents);
 				}
 			}
 		}

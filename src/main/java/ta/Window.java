@@ -1,8 +1,11 @@
 package ta;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -13,6 +16,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import stm.StorageManager;
+import topk.EntityBlock;
+import topk.TkET;
 import topk.TopK;
 import conf.Interest;
 import conf.Phrase;
@@ -36,7 +41,13 @@ public class Window implements Runnable {
 	private volatile boolean open;
 	private volatile boolean done;
 
+	// top-k related
 	private List<String> topEntities;
+	private Map<String, EntityBlock> entityBlocks;
+	long timestamp;
+	int tweetCount;
+
+	private List<EntityBlock> topk;
 
 	public Window() {
 		done = false;
@@ -46,6 +57,7 @@ public class Window implements Runnable {
 		t_cw = new Thread(this);
 		t_cw.setName("t_cw");
 		topEntities = new LinkedList<String>();
+		entityBlocks=new HashMap<String, EntityBlock>();
 	}
 
 	public void open() {
@@ -158,6 +170,17 @@ public class Window implements Runnable {
 					plastWindowStatistics.finalize(pstatistics, getLength());
 			}
 		}
+
+		// top-k related
+		// window finished, report
+		logger.info("window is full");
+		// logger.info(entityBlocks.size());
+		// logger.info(tweetCount);
+		// logger.info(slideBuffer.size());
+		TkET tkET = new TkET(.8, 100, 2, false);
+		tkET.setEntityBlocks(new ArrayList<EntityBlock>(entityBlocks.values()));
+		topk = tkET.topk(5);
+		tweetCount = 0;
 	}
 
 	public long getEndTime() {
@@ -212,5 +235,37 @@ public class Window implements Runnable {
 
 	public void setTopEntities(List<String> topEntities) {
 		this.topEntities = topEntities;
+	}
+
+	// top-k related
+	public void addEntity(Tweet tweet, String mention, String ents) {
+		String[] es = ents.split("\t")[1].split(",");
+		for (String e : es) {
+			if (e.length() < 5)
+				continue;
+
+			e = e.trim();
+			String[] e_parts = e.split("~~");
+			String id = e_parts[0].trim();
+			String title = e_parts[1].trim();
+			Double rel = Double.valueOf(e_parts[2].trim());
+
+			if (rel >= 1) {
+				if (!entityBlocks.containsKey(title))
+					entityBlocks.put(title, new EntityBlock(title));
+
+				EntityBlock eb = entityBlocks.get(title);
+				// eb.matchingEntities.add(id);
+				eb.addMention(tweet.getId(), rel, true);
+				tweet.addEntity(mention, ents);
+			}
+		}
+
+		tweetCount++;
+	}
+
+	// top-k related
+	public List<EntityBlock> getTopkEntities() {
+		return topk;
 	}
 }

@@ -1,5 +1,8 @@
 package conf;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import org.bson.types.ObjectId;
 import org.mongodb.morphia.annotations.Embedded;
 import org.mongodb.morphia.annotations.Entity;
@@ -7,6 +10,7 @@ import org.mongodb.morphia.annotations.Id;
 
 import ta.Acquisition;
 import ta.WindowStatistics;
+import topk.EntityBlock;
 
 @Entity("report")
 public class Report {
@@ -23,6 +27,12 @@ public class Report {
 	@Embedded
 	private WindowStatistics statistics;
 
+	@Embedded
+	private List<EntityBlock> topkEntities;
+
+	public Report() {
+	}
+
 	public Report(ta.Window window, Query q) {
 		startTime = window.getStartTime();
 		endTime = window.getEndTime();
@@ -30,6 +40,7 @@ public class Report {
 		interestId = Acquisition.getInterest().getId();
 		setDuration(window.getLength());
 		query = q;
+		topkEntities = window.getTopkEntities();
 	}
 
 	public long getStartTime() {

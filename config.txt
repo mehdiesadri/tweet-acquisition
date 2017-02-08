@@ -27,11 +27,11 @@ KBHost=sensoria.ics.uci.edu
 KBPort=9090
 
 #AcquisitionModule
-AcquisitionTweetRelevanceThreshold=.5
-AcquisitionTweetIrrelevanceThreshold=.1
-AcquisitionMinWindowLength=5
-AcquisitionMinNumberOfTweets=100000
-AcquisitionWindowSize=100000
+AcquisitionTweetRelevanceThreshold=.4
+AcquisitionTweetIrrelevanceThreshold=.05
+AcquisitionMinWindowLength=3
+AcquisitionMinNumberOfTweets=10
+AcquisitionWindowSize=50
 AcquisitionPhraseLimit=50
 AcquisitionLocationLimit=250
 AcquisitionUserLimit=250

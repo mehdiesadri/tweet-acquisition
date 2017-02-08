@@ -4,6 +4,8 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 
+import org.mongodb.morphia.annotations.Transient;
+
 import com.analog.lyric.dimple.factorfunctions.Sum;
 import com.analog.lyric.dimple.model.core.FactorGraph;
 import com.analog.lyric.dimple.model.domains.DiscreteDomain;
@@ -16,10 +18,18 @@ import com.analog.lyric.dimple.solvers.sumproduct.SumProductSolver;
 
 public class EntityBlock {
 	private String title;
+	
+	@Transient
 	private transient FactorGraph fg;
+	@Transient
 	private transient Discrete result;
+	
 	Map<Integer, Double> CountProbabilities;
+	
+	@Transient
 	Map<Long, Bit> MentionBits;
+	
+	@Transient
 	Map<Long, Boolean> GroundTruthMentionProbabilities;
 
 	int totalCount;

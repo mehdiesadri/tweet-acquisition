@@ -39,7 +39,7 @@ public class WindowStatistics extends Statistics {
 	@Transient
 	private volatile long duration;
 
-	public WindowStatistics(TotalStatistics pstat) {
+	public WindowStatistics() {
 		addedPhraseCount = new AtomicInteger(0);
 		removedPhraseCount = new AtomicInteger(0);
 		generalizedPhraseCount = new AtomicInteger(0);
