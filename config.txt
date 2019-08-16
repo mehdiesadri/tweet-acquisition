@@ -1,8 +1,8 @@
 #Twitter OAuth
-ConsumerKey=Nz4vq28FeS8xT95pnvnHA
-ConsumerSecret=oqfvx5N8SGV1lDQOm6obtwu0i1lE5Z6WmmgBq4a1Y
-AccessToken=612059824-YaccbVKjoYDc6IwL3GIVErjTT70Tio38J0Pc4DOb
-AccessTokenSecret=GuCChvZjr5DSkyA5VcPx5doU7GTD6HVuKYW42A0RHyQ
+ConsumerKey=Get Yours
+ConsumerSecret=YoursYours
+AccessToken=YoursYours
+AccessTokenSecret=YoursYours
 
 #Query File Path
 QueryFilePath=./queries.json
