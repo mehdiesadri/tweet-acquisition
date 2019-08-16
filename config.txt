@@ -1,8 +1,8 @@
 #Twitter OAuth
 ConsumerKey=Get Yours
-ConsumerSecret=YoursYours
-AccessToken=YoursYours
-AccessTokenSecret=YoursYours
+ConsumerSecret=Get Yours
+AccessToken=Get Yours
+AccessTokenSecret=Get Yours
 
 #Query File Path
 QueryFilePath=./queries.json
